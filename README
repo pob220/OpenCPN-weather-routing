@@ -4,7 +4,7 @@
 
 a.  Opencpn was built with the following objectives in mind.
 
-    i.   Intended use as primary navigation interface for vessels
+    i.   Intended use as primary navigation interface for vessels 
          with full-time helm-visible navigational suites.
          Other tools may be better for offline route planning, tide
          and current prediction, online logging, etc.

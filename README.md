@@ -1,7 +1,7 @@
 # SuperCPN
 
 SuperCPN is a pop220 & Peaks2000 fork of OpenCPN focused on a cleaner helm UI
-and a tighter weather, current, and routing workflow. It keeps OpenCPN plugin
+and a tighter weather, current, and routing workflow. It kehttps://github.com/pob220/SuperCPN/pulseeps OpenCPN plugin
 compatibility where practical, while separating the visible app identity,
 commands, desktop metadata, data directories, and configuration paths from
 OpenCPN.
@@ -9,11 +9,6 @@ OpenCPN.
 
 ## What Changed From OpenCPN
 
-### SuperCPN Branding
-
-  The app name, launcher, command names, installed data paths, local config
-  paths, and desktop metadata are branded as SuperCPN so SuperCPN and OpenCPN
-  can live side by side on the same machine.
 
 ### Cleaner Left Sidebar
 

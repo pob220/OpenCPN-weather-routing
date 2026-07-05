@@ -27,7 +27,7 @@
 #include <vector>
 
 #include <wx/bitmap.h>
-#include <wx/choice.h>
+#include <wx/button.h>
 #include <wx/dynarray.h>
 #include <wx/string.h>
 #include <wx/tbarbase.h>
@@ -532,7 +532,7 @@ private:
   bool m_bsubmerged;
 
   wxWindow *m_pparent;
-  wxChoice *m_profileChoice;
+  wxButton *m_profileChoice;
   std::vector<wxString> m_profileChoiceIds;
   int m_profileListenerId;
   wxBoxSizer *m_topSizer;

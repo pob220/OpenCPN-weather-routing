@@ -3989,6 +3989,21 @@ void options::CreatePanel_Display(size_t parent, int border_size,
                                   int group_item_spacing) {
   pDisplayPanel = AddPage(parent, _("General"));
 
+  auto addBoatProfileImport = [&](wxBoxSizer* wrapperSizer) {
+    auto* boatProfileBox =
+        new wxStaticBox(pDisplayPanel, wxID_ANY, _("Boat Profiles"));
+    auto* boatProfileSizer =
+        new wxStaticBoxSizer(boatProfileBox, wxVERTICAL);
+    auto* importButton =
+        new wxButton(boatProfileBox, wxID_ANY, _("Import from OpenCPN..."));
+    importButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+      wxMessageBox(_("No OpenCPN boat profile import source was found."),
+                   _("Import from OpenCPN"), wxOK | wxICON_INFORMATION, this);
+    });
+    boatProfileSizer->Add(importButton, 0, wxALL, group_item_spacing);
+    wrapperSizer->Add(boatProfileSizer, 0, wxALL | wxEXPAND, border_size);
+  };
+
   if (!m_bcompact) {
     wxFlexGridSizer* generalSizer = new wxFlexGridSizer(2);
     generalSizer->SetHGap(border_size);
@@ -4180,6 +4195,8 @@ void options::CreatePanel_Display(size_t parent, int border_size,
     }
 #endif
 
+    addBoatProfileImport(wrapperSizer);
+
   } else {  // compact follows
     wxFlexGridSizer* generalSizer = new wxFlexGridSizer(2);
     generalSizer->SetHGap(border_size);
@@ -4364,6 +4381,8 @@ void options::CreatePanel_Display(size_t parent, int border_size,
       itemStaticBoxSizerScreenConfig->AddSpacer(GetCharHeight());
     }
 #endif
+
+    addBoatProfileImport(wrapperSizer);
   }
 }
 

@@ -66,6 +66,29 @@ extern GLenum g_texture_rectangle_format;
 
 ocpnFloatingToolbarDialog *g_MainToolbar;
 
+namespace {
+wxString EllipsizeProfileLabel(wxWindow* win, const wxString& label,
+                               int width) {
+  if (!win || width <= 0 || label.empty()) return label;
+
+  wxClientDC dc(win);
+  dc.SetFont(win->GetFont());
+  int text_width = 0;
+  int text_height = 0;
+  dc.GetTextExtent(label, &text_width, &text_height);
+  if (text_width <= width) return label;
+
+  wxString text = label;
+  const wxString ellipsis = "...";
+  while (text.length() > 1) {
+    text.RemoveLast();
+    dc.GetTextExtent(text + ellipsis, &text_width, &text_height);
+    if (text_width <= width) return text + ellipsis;
+  }
+  return ellipsis;
+}
+}
+
 class ocpnToolBarTool : public wxToolBarToolBase {
 public:
   ocpnToolBarTool(ocpnToolBarSimple *tbar, int id, const wxString &label,
@@ -213,13 +236,12 @@ ocpnFloatingToolbarDialog::ocpnFloatingToolbarDialog(wxWindow *parent,
 
 #ifndef __ANDROID__
   if (m_pparent && m_orient == wxTB_VERTICAL) {
-    m_profileChoice = new wxChoice(m_pparent, wxID_ANY);
+    m_profileChoice = new wxButton(m_pparent, wxID_ANY, wxEmptyString);
     m_profileChoice->SetToolTip(_("Active Boat Profile"));
     m_profileChoice->SetMinSize(wxSize(wxRound(170 * m_sizefactor), -1));
-    m_profileChoice->Connect(
-        wxEVT_COMMAND_CHOICE_SELECTED,
-        wxCommandEventHandler(ocpnFloatingToolbarDialog::OnBoatProfileChoice),
-        nullptr, this);
+    m_profileChoice->Bind(wxEVT_BUTTON,
+                          &ocpnFloatingToolbarDialog::OnBoatProfileChoice,
+                          this);
     m_profileListenerId = BoatProfileService::Get().AddListener(
         [this](const BoatProfile*) { RefreshBoatProfileChoice(); });
     RefreshBoatProfileChoice();
@@ -231,10 +253,9 @@ ocpnFloatingToolbarDialog::~ocpnFloatingToolbarDialog() {
   if (m_profileListenerId)
     BoatProfileService::Get().RemoveListener(m_profileListenerId);
   if (m_profileChoice) {
-    m_profileChoice->Disconnect(
-        wxEVT_COMMAND_CHOICE_SELECTED,
-        wxCommandEventHandler(ocpnFloatingToolbarDialog::OnBoatProfileChoice),
-        nullptr, this);
+    m_profileChoice->Unbind(wxEVT_BUTTON,
+                            &ocpnFloatingToolbarDialog::OnBoatProfileChoice,
+                            this);
     m_profileChoice->Destroy();
     m_profileChoice = nullptr;
   }
@@ -771,29 +792,19 @@ void ocpnFloatingToolbarDialog::RefreshBoatProfileChoice() {
   service.EnsureActiveProfile(_("My Boat"));
   const wxString active_id = service.GetActiveProfileId();
 
-  m_profileChoice->Freeze();
-  m_profileChoice->Clear();
   m_profileChoiceIds.clear();
 
-  int active_index = wxNOT_FOUND;
+  wxString active_label = _("Boat Profile");
   for (const auto& profile : service.GetProfiles()) {
-    wxString label = profile.name;
-    if (label.empty()) label = _("Unnamed Boat");
-    m_profileChoice->Append(label);
     m_profileChoiceIds.push_back(profile.id);
-    if (profile.id == active_id) active_index = m_profileChoice->GetCount() - 1;
+    if (profile.id == active_id) {
+      active_label = profile.name.empty() ? _("Unnamed Boat") : profile.name;
+    }
   }
 
-  m_profileChoice->Append(_("Manage Boat Profiles..."));
-  m_profileChoice->Append(_("Create New Boat Profile..."));
-  m_profileChoice->Append(_("Import from OpenCPN..."));
-
-  if (active_index != wxNOT_FOUND)
-    m_profileChoice->SetSelection(active_index);
-  else if (m_profileChoice->GetCount() > 0)
-    m_profileChoice->SetSelection(0);
-
-  m_profileChoice->Thaw();
+  const int text_width = wxRound(145 * m_sizefactor);
+  m_profileChoice->SetLabel(EllipsizeProfileLabel(m_profileChoice,
+                                                  active_label, text_width));
   PositionBoatProfileChoice();
 }
 
@@ -820,40 +831,66 @@ void ocpnFloatingToolbarDialog::PositionBoatProfileChoice() {
 void ocpnFloatingToolbarDialog::OnBoatProfileChoice(wxCommandEvent &event) {
   if (!m_profileChoice) return;
 
-  const int selection = m_profileChoice->GetSelection();
   auto& service = BoatProfileService::Get();
   wxString error;
 
-  if (selection >= 0 && selection < (int)m_profileChoiceIds.size()) {
-    if (!service.SetActiveProfile(m_profileChoiceIds[selection], &error)) {
-      wxMessageBox(error, _("Boat Profile"), wxOK | wxICON_WARNING,
-                   wxTheApp->GetTopWindow());
+  enum {
+    ID_PROFILE_BASE = wxID_HIGHEST + 4200,
+    ID_PROFILE_MANAGE = wxID_HIGHEST + 5200,
+    ID_PROFILE_CREATE
+  };
+
+  wxMenu menu;
+  m_profileChoiceIds.clear();
+  int index = 0;
+  const wxString active_id = service.GetActiveProfileId();
+  for (const auto& profile : service.GetProfiles()) {
+    wxString label = profile.name.empty() ? _("Unnamed Boat") : profile.name;
+    const int id = ID_PROFILE_BASE + index;
+    wxMenuItem* item = menu.AppendRadioItem(id, label);
+    item->Check(profile.id == active_id);
+    m_profileChoiceIds.push_back(profile.id);
+    ++index;
+  }
+
+  if (!m_profileChoiceIds.empty()) menu.AppendSeparator();
+  menu.Append(ID_PROFILE_MANAGE, _("Manage Boat Profiles..."));
+  menu.Append(ID_PROFILE_CREATE, _("Create New Boat Profile..."));
+
+  menu.Bind(wxEVT_MENU, [this, &service](wxCommandEvent& event) {
+    wxString error;
+    const int selection = event.GetId() - ID_PROFILE_BASE;
+    if (selection >= 0 && selection < (int)m_profileChoiceIds.size()) {
+      if (!service.SetActiveProfile(m_profileChoiceIds[selection], &error)) {
+        wxMessageBox(error, _("Boat Profile"), wxOK | wxICON_WARNING,
+                     wxTheApp->GetTopWindow());
+      }
+      return;
     }
-    return;
-  }
 
-  const int action_index = selection - (int)m_profileChoiceIds.size();
-  if (action_index == 0) {
-    wxMessageBox(_("Boat Profile management is available from the active "
-                  "profile selector. Create a new profile here, or edit "
-                  "profiles from onboarding until the full manager is added."),
-                 _("Manage Boat Profiles"), wxOK | wxICON_INFORMATION,
-                 wxTheApp->GetTopWindow());
-  } else if (action_index == 1) {
-    BoatProfile profile = BoatProfileStore::CreateFromCurrentSettings(
-        wxString::Format(_("Boat %u"),
-                         (unsigned)service.GetProfiles().size() + 1));
-    if (service.AddProfile(profile, &error))
-      service.SetActiveProfile(profile.id, &error);
-    if (!error.empty())
-      wxMessageBox(error, _("Boat Profile"), wxOK | wxICON_WARNING,
+    if (event.GetId() == ID_PROFILE_MANAGE) {
+      wxMessageBox(_("Full Boat Profile management is not available yet. "
+                    "Create a new profile here, or use onboarding to refine "
+                    "the active profile. OpenCPN import is available from "
+                    "General settings."),
+                   _("Manage Boat Profiles"), wxOK | wxICON_INFORMATION,
                    wxTheApp->GetTopWindow());
-  } else if (action_index == 2) {
-    wxMessageBox(_("No OpenCPN boat profile import source was found."),
-                 _("Import from OpenCPN"), wxOK | wxICON_INFORMATION,
-                 wxTheApp->GetTopWindow());
-  }
+    } else if (event.GetId() == ID_PROFILE_CREATE) {
+      BoatProfile profile = BoatProfileStore::CreateFromCurrentSettings(
+          wxString::Format(_("Boat %u"),
+                           (unsigned)service.GetProfiles().size() + 1));
+      if (service.AddProfile(profile, &error))
+        service.SetActiveProfile(profile.id, &error);
+      if (!error.empty())
+        wxMessageBox(error, _("Boat Profile"), wxOK | wxICON_WARNING,
+                     wxTheApp->GetTopWindow());
+    }
 
+    RefreshBoatProfileChoice();
+  });
+
+  wxPoint pos(0, m_profileChoice->GetSize().y);
+  m_profileChoice->PopupMenu(&menu, pos);
   RefreshBoatProfileChoice();
 }
 

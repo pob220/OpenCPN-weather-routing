@@ -219,6 +219,14 @@ void FirstUseWizImpl::CreateBoatProfilePage() {
   note->Wrap(650);
   content_sizer->Add(note, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
 
+  auto* import_button =
+      new wxButton(scroller, wxID_ANY, _("Import from OpenCPN..."));
+  import_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+    wxMessageBox(_("No OpenCPN boat profile import source was found."),
+                 _("Import from OpenCPN"), wxOK | wxICON_INFORMATION, this);
+  });
+  content_sizer->Add(import_button, 0, wxLEFT | wxRIGHT | wxBOTTOM, 8);
+
   scroller->SetSizer(content_sizer);
   content_sizer->Fit(scroller);
   page_sizer->Add(scroller, 1, wxEXPAND | wxALL, 5);

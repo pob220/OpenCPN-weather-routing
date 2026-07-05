@@ -968,7 +968,7 @@ wxBitmap *dashboard_pi::GetPlugInBitmap() { return _img_dashboard_pi; }
 wxString dashboard_pi::GetCommonName() { return _("Dashboard"); }
 
 wxString dashboard_pi::GetShortDescription() {
-  return _("Dashboard PlugIn for OpenCPN");
+  return _("Dashboard PlugIn for SuperCPN");
 }
 
 wxString dashboard_pi::GetLongDescription() {
@@ -4562,7 +4562,7 @@ DashboardPreferencesDialog::DashboardPreferencesDialog(
       new wxStaticText(itemPanelNotebook02, wxID_ANY, _("Boat speed units:"),
                        wxDefaultPosition, wxDefaultSize, 0);
   itemFlexGridSizer04->Add(itemStaticText09, 0, wxEXPAND | wxALL, border_size);
-  wxString m_SpeedUnitChoices[] = {_("Honor OpenCPN settings"), _("Kts"),
+  wxString m_SpeedUnitChoices[] = {_("Honor SuperCPN settings"), _("Kts"),
                                    _("mph"), _("km/h"), _("m/s")};
   int m_SpeedUnitNChoices = sizeof(m_SpeedUnitChoices) / sizeof(wxString);
   wxSize szSpeedUnit = wxDefaultSize;
@@ -4626,7 +4626,7 @@ DashboardPreferencesDialog::DashboardPreferencesDialog(
       new wxStaticText(itemPanelNotebook02, wxID_ANY, _("Distance units:"),
                        wxDefaultPosition, wxDefaultSize, 0);
   itemFlexGridSizer04->Add(itemStaticText0b, 0, wxEXPAND | wxALL, border_size);
-  wxString m_DistanceUnitChoices[] = {_("Honor OpenCPN settings"),
+  wxString m_DistanceUnitChoices[] = {_("Honor SuperCPN settings"),
                                       _("Nautical miles"), _("Statute miles"),
                                       _("Kilometers"), _("Meters")};
   wxSize szDistanceUnit = wxDefaultSize;

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-    <title>OpenCPN</title>
+    <title>SuperCPN</title>
     <background mime-type="image/png">
        ../buildosx/opencpn418x620.png
     </background>
@@ -23,4 +23,3 @@
     </pkg-ref>
     <options hostArchitectures="${CMAKE_OSX_ARCHITECTURES_COMMA_SEP}" />
 </installer-gui-script>
-

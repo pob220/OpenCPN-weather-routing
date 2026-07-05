@@ -13,6 +13,7 @@
 #include <wx/event.h>
 #include <wx/evtloop.h>
 #include <wx/fileconf.h>
+#include <wx/filename.h>
 #include <wx/jsonval.h>
 #include <wx/jsonreader.h>
 
@@ -23,6 +24,8 @@
 #include "model/ais_decoder.h"
 #include "model/ais_defs.h"
 #include "model/ais_state_vars.h"
+#include "model/boat_profile.h"
+#include "model/boat_profile_service.h"
 #include "model/cli_platform.h"
 #include "model/comm_ais.h"
 #include "model/comm_appmsg_bus.h"
@@ -90,6 +93,125 @@ auto shared_navaddr_none = std::make_shared<NavAddr>();
 auto shared_navaddr_none2000 = std::make_shared<NavAddr2000>();
 
 wxLogStderr defaultLog;
+
+static wxString TestPath(const wxString& leaf) {
+  return wxFileName(wxString(CMAKE_BINARY_DIR), leaf).GetFullPath();
+}
+
+TEST(BoatProfile, ValidatesRequiredNavigationFields) {
+  BoatProfile profile = BoatProfileStore::CreateDefaultProfile("Cruiser");
+
+  EXPECT_TRUE(BoatProfileStore::Validate(profile).ok);
+
+  profile.name.clear();
+  profile.length_m = -1.0;
+  profile.max_speed_kn = 3.0;
+  profile.cruising_speed_kn = 6.0;
+  profile.current_step_hours = 5;
+  profile.current_duration_hours = 24;
+
+  auto result = BoatProfileStore::Validate(profile);
+  EXPECT_FALSE(result.ok);
+  EXPECT_GE(result.errors.size(), 4U);
+}
+
+TEST(BoatProfile, PersistsProfilesAndActiveSelection) {
+  const wxString path = TestPath("boat_profiles_store_test.json");
+  std::remove(path.mb_str());
+
+  BoatProfileStore store(path);
+  BoatProfile dayboat = BoatProfileStore::CreateDefaultProfile("Dayboat");
+  BoatProfile cruiser = BoatProfileStore::CreateDefaultProfile("Cruiser");
+  cruiser.cruising_speed_kn = 7.25;
+  cruiser.notes = "Imported profile candidate";
+
+  wxString error;
+  ASSERT_TRUE(store.AddProfile(dayboat, &error)) << error;
+  ASSERT_TRUE(store.AddProfile(cruiser, &error)) << error;
+  ASSERT_TRUE(store.SetActiveProfile(cruiser.id, &error)) << error;
+  ASSERT_TRUE(store.Save(&error)) << error;
+
+  BoatProfileStore loaded(path);
+  ASSERT_TRUE(loaded.Load(&error)) << error;
+  ASSERT_EQ(2U, loaded.GetProfiles().size());
+  ASSERT_NE(nullptr, loaded.GetActiveProfile());
+  EXPECT_EQ(cruiser.id, loaded.GetActiveProfileId());
+  EXPECT_DOUBLE_EQ(7.25, loaded.GetActiveProfile()->cruising_speed_kn);
+  EXPECT_EQ("Imported profile candidate", loaded.GetActiveProfile()->notes);
+}
+
+TEST(BoatProfile, KeepsAValidActiveProfileAfterDelete) {
+  BoatProfileStore store(TestPath("boat_profiles_delete_test.json"));
+  BoatProfile first = BoatProfileStore::CreateDefaultProfile("First");
+  BoatProfile second = BoatProfileStore::CreateDefaultProfile("Second");
+
+  wxString error;
+  ASSERT_TRUE(store.AddProfile(first, &error)) << error;
+  ASSERT_TRUE(store.AddProfile(second, &error)) << error;
+  ASSERT_TRUE(store.SetActiveProfile(first.id, &error)) << error;
+  ASSERT_TRUE(store.DeleteProfile(first.id, &error)) << error;
+
+  EXPECT_EQ(second.id, store.GetActiveProfileId());
+  EXPECT_FALSE(store.DeleteProfile(second.id, &error));
+}
+
+TEST(BoatProfile, SeedsFromCurrentOwnShipSettings) {
+  const double old_length = g_n_ownship_length_meters;
+  const double old_beam = g_n_ownship_beam_meters;
+  const double old_speed = g_defaultBoatSpeed;
+
+  g_n_ownship_length_meters = 12.4;
+  g_n_ownship_beam_meters = 4.1;
+  g_defaultBoatSpeed = 6.8;
+
+  BoatProfile profile = BoatProfileStore::CreateFromCurrentSettings("Seeded");
+
+  EXPECT_EQ("Seeded", profile.name);
+  EXPECT_DOUBLE_EQ(12.4, profile.length_m);
+  EXPECT_DOUBLE_EQ(4.1, profile.beam_m);
+  EXPECT_DOUBLE_EQ(6.8, profile.cruising_speed_kn);
+  EXPECT_GT(profile.max_speed_kn, profile.cruising_speed_kn);
+
+  g_n_ownship_length_meters = old_length;
+  g_n_ownship_beam_meters = old_beam;
+  g_defaultBoatSpeed = old_speed;
+}
+
+TEST(BoatProfile, UsesSuperCpnOwnedDefaultPath) {
+#ifdef _MSC_VER
+  _putenv_s("SUPERCPN_TEST_HOME", CMAKE_BINARY_DIR);
+#else
+  setenv("SUPERCPN_TEST_HOME", CMAKE_BINARY_DIR, 1);
+#endif
+
+  const wxString path = BoatProfileStore::DefaultFileName().Lower();
+  EXPECT_NE(wxNOT_FOUND, path.Find("supercpn"));
+  EXPECT_EQ(wxNOT_FOUND, path.Find("opencpn"));
+}
+
+TEST(BoatProfile, ServiceEnsuresActiveProfile) {
+  const wxString test_home = TestPath("boat_profile_service_home");
+  fs::remove_all(std::string(test_home.mb_str()));
+  fs::create_directories(std::string(test_home.mb_str()));
+
+#ifdef _MSC_VER
+  _putenv_s("SUPERCPN_TEST_HOME", std::string(test_home.mb_str()).c_str());
+#else
+  setenv("SUPERCPN_TEST_HOME", std::string(test_home.mb_str()).c_str(), 1);
+#endif
+
+  const wxString path = BoatProfileStore::DefaultFileName();
+  std::remove(path.mb_str());
+
+  wxString error;
+  auto& service = BoatProfileService::Get();
+  ASSERT_TRUE(service.Load(&error)) << error;
+  ASSERT_TRUE(service.EnsureActiveProfile("Service Boat", &error)) << error;
+
+  const BoatProfile* active = service.GetActiveProfile();
+  ASSERT_NE(nullptr, active);
+  EXPECT_EQ("Service Boat", active->name);
+}
 
 #ifdef _MSC_VER
 int setenv(const char* name, const char* value, bool overwrite) {

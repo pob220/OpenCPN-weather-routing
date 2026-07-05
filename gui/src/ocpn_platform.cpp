@@ -160,7 +160,7 @@ static bool checkIfFlatpacked() {
   if (!wxGetEnv("FLATPAK_ID", &id)) {
     return false;
   }
-  return id == "org.opencpn.OpenCPN";
+  return id == "org.supercpn.SuperCPN";
 }
 
 OCPNPlatform::OCPNPlatform() {
@@ -257,7 +257,7 @@ void OCPNPlatform::Initialize_1() {
   CR_INSTALL_INFO info;
   memset(&info, 0, sizeof(CR_INSTALL_INFO));
   info.cb = sizeof(CR_INSTALL_INFO);
-  info.pszAppName = L"OpenCPN";
+  info.pszAppName = L"SuperCPN";
 
   info.pszAppVersion = wxString(VERSION_FULL).c_str();
 
@@ -359,12 +359,14 @@ void OCPNPlatform::Initialize_1() {
     }
     appendOSDirSlash(&home_data_crash);
 
-    wxString config_crash = "opencpn.ini";
+    wxString config_crash = OCPN_APP_PACKAGE_NAME;
+    config_crash += ".ini";
     config_crash.Prepend(home_data_crash);
     crAddFile2(config_crash.c_str(), NULL, NULL,
                CR_AF_MISSING_FILE_OK | CR_AF_ALLOW_DELETE);
 
-    wxString log_crash = "opencpn.log";
+    wxString log_crash = OCPN_APP_PACKAGE_NAME;
+    log_crash += ".log";
     log_crash.Prepend(home_data_crash);
     crAddFile2(log_crash.c_str(), NULL, NULL,
                CR_AF_MISSING_FILE_OK | CR_AF_ALLOW_DELETE);
@@ -624,9 +626,10 @@ bool OCPNPlatform::BuildGLCaps(void *pbuf) {
 #ifndef __ANDROID__
   fs::path ep(GetExePath().ToStdString());
 #ifndef __WXMSW__
-  std::string gl_util_exe = "opencpn-glutil";
+  std::string gl_util_exe = std::string(OCPN_APP_PACKAGE_NAME) + "-glutil";
 #else
-  std::string gl_util_exe = "opencpn-glutil.exe";
+  std::string gl_util_exe =
+      std::string(OCPN_APP_PACKAGE_NAME) + "-glutil.exe";
 #endif
   fs::path gl_util_path = ep.parent_path().append(gl_util_exe);
 
@@ -637,7 +640,8 @@ bool OCPNPlatform::BuildGLCaps(void *pbuf) {
   if (!fs::exists(gl_util_path)) {
     // TODO: What to do if the utility is not found (Which it is not for
     // developer builds that are not installed)?
-    wxLogMessage("OpenGL test utility not found at %s.", gl_util_path.c_str());
+    wxLogMessage("OpenGL test utility not found at %s.",
+                 gl_util_path.string().c_str());
     return false;
   }
 
@@ -652,9 +656,9 @@ bool OCPNPlatform::BuildGLCaps(void *pbuf) {
 
   wxArrayString output;
   if (long res = wxExecute(cmd, output); res != 0) {
-    wxLogMessage("OpenGL test utility failed with exit code %d", res);
+    wxLogMessage("OpenGL test utility failed with exit code %ld", res);
     for (const auto &l : output) {
-      wxLogMessage(l);
+      wxLogMessage("%s", l);
     }
     return false;
   }
@@ -666,7 +670,7 @@ bool OCPNPlatform::BuildGLCaps(void *pbuf) {
   if (reader.GetErrorCount() > 0) {
     wxLogMessage("Failed to parse JSON output from OpenGL test utility.");
     for (const auto &l : reader.GetErrors()) {
-      wxLogMessage(l);
+      wxLogMessage("%s", l);
     }
     return false;
   }
@@ -1038,7 +1042,7 @@ wxString OCPNPlatform::ChangeLocale(wxString &newLocaleID,
   wxLocale *locale = new wxLocale;
   if (isFlatpacked()) {
     std::string path(getenv("HOME"));
-    path += "/.var/app/org.opencpn.OpenCPN/data/locale";
+    path += "/.var/app/org.supercpn.SuperCPN/data/locale";
     locale->AddCatalogLookupPathPrefix(path);
     wxLogMessage("Using flatpak locales at %s", path.c_str());
   }
@@ -1106,9 +1110,8 @@ wxString OCPNPlatform::ChangeLocale(wxString &newLocaleID,
       }
     }
 
-    // Get core opencpn catalog translation (.mo) file
-    wxLogMessage("Loading catalog for opencpn core.");
-    locale->AddCatalog("opencpn");
+    wxLogMessage("Loading catalog for %s core.", OCPN_APP_PACKAGE_NAME);
+    locale->AddCatalog(OCPN_APP_PACKAGE_NAME);
 
     return_val = locale->GetCanonicalName();
 

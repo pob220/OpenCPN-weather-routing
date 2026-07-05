@@ -785,7 +785,7 @@ void AISTargetListDialog::CreateControls() {
     m_pFindTargetName->Disable();
     m_pFindTargetName->SetDefaultStyle(wxTextAttr(wxNullColour, *wxLIGHT_GREY));
     m_pStaticTextFind->SetToolTip(
-        _("Disable OpenCPN MenuBar to search for AIS targets"));
+        _("Disable SuperCPN MenuBar to search for AIS targets"));
   }
 
   m_pCBAutosort =

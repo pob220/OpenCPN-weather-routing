@@ -131,7 +131,7 @@ void LinkPropImpl::OnLocalFileClick(wxCommandEvent& event) {
 void LinkPropImpl::OnOkClick(wxCommandEvent& event) {
   if (m_textCtrlLinkUrl->GetValue() == "")
     OCPNMessageBox(NULL, _("Link not complete, can't be saved."),
-                   _("OpenCPN Info"), wxICON_HAND);
+                   _("SuperCPN Info"), wxICON_HAND);
 
   else
     event.Skip();

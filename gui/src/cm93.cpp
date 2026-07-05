@@ -6218,7 +6218,7 @@ CM93OffsetDialog::CM93OffsetDialog(wxWindow *parent) {
   m_selected_cell_index = 0;
 
   long wstyle = wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER;
-  wxDialog::Create(parent, -1, _("OpenCPN CM93 Cell Offset Adjustments"),
+  wxDialog::Create(parent, -1, _("SuperCPN CM93 Cell Offset Adjustments"),
                    wxPoint(0, 0), wxSize(800, 200), wstyle);
 
   wxFont *qFont = GetOCPNScaledFont(_("Dialog"));

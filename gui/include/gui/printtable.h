@@ -19,7 +19,7 @@
 /**
  * \file
  *
- * OpenCPN Route table printout
+ * SuperCPN Route table printout
  */
 
 #ifndef PRINTTABLE_H

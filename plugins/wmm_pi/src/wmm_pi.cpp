@@ -300,7 +300,7 @@ wxBitmap *wmm_pi::GetPlugInBitmap() { return _img_wmm_pi; }
 wxString wmm_pi::GetCommonName() { return _("WMM"); }
 
 wxString wmm_pi::GetShortDescription() {
-  return _("World Magnetic Model PlugIn for OpenCPN");
+  return _("World Magnetic Model PlugIn for SuperCPN");
 }
 
 wxString wmm_pi::GetLongDescription() {

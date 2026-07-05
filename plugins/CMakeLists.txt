@@ -22,7 +22,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.10)
 MESSAGE (STATUS "*** Staging to build PlugIns ***")
 # These variables are inherited by all plugins
-set(PARENT opencpn)
+set(PARENT ${OCPN_APP_PACKAGE_NAME})
 set(PREFIX_DATA share)
 set(PREFIX_PLUGINS ${PREFIX_LIB}/${PARENT})
 

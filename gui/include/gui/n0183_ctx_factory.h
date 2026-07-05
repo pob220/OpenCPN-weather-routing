@@ -37,7 +37,7 @@
 static bool ConfirmOverwrite() {
   int r =
       OCPNMessageBox(NULL, _("Overwrite Garmin device route number 1?"),
-                     _("OpenCPN Message"), wxOK | wxCANCEL | wxICON_QUESTION);
+                     _("SuperCPN Message"), wxOK | wxCANCEL | wxICON_QUESTION);
   return r == wxID_OK;
 }
 

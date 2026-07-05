@@ -31,10 +31,14 @@
 #define _WIZ_UI_H__
 
 #include "wiz_ui_proto.h"
+#include "model/boat_profile.h"
+#include "model/boat_profile_service.h"
 #include "model/conn_params.h"
 #include "navutil.h"
 
 #include <cstdint>
+#include <wx/spinctrl.h>
+#include <wx/textctrl.h>
 
 struct USBDevice {
   std::string name;
@@ -65,7 +69,7 @@ const std::vector<USBDevice> known_usb_devices = {
 class FirstUseWizImpl : public FirstUseWiz {
 public:
   FirstUseWizImpl(wxWindow* parent, MyConfig* pConfig, wxWindowID id = wxID_ANY,
-                  const wxString& title = _("OpenCPN Initial Configuration"),
+                  const wxString& title = _("SuperCPN Initial Configuration"),
                   const wxBitmap& bitmap = wxNullBitmap,
                   const wxPoint& pos = wxDefaultPosition,
                   long style = wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER |
@@ -99,8 +103,21 @@ public:
 private:
   MyConfig* m_pConfig;
   std::vector<ConnectionParams> m_detected_connections;
+  wxWizardPageSimple* m_wpBoatProfile = nullptr;
+  wxTextCtrl* m_tcBoatProfileName = nullptr;
+  wxSpinCtrlDouble* m_scBoatLength = nullptr;
+  wxSpinCtrlDouble* m_scBoatBeam = nullptr;
+  wxSpinCtrlDouble* m_scBoatDraft = nullptr;
+  wxSpinCtrlDouble* m_scBoatAirDraft = nullptr;
+  wxSpinCtrlDouble* m_scBoatCruisingSpeed = nullptr;
+  wxSpinCtrlDouble* m_scBoatMaxSpeed = nullptr;
+  BoatProfile m_initial_boat_profile;
   NMEA0183Flavor SeemsN0183(std::string& data);
   bool SeemsN2000(std::string& data);
+  void CreateBoatProfilePage();
+  void RelinkPages();
+  BoatProfile ReadBoatProfilePage() const;
+  bool SaveBoatProfileFromWizard(wxString* error);
 
   inline void SetControlEnable(int id, bool state) {
     wxWindow* win = wxWindow::FindWindowById(id);

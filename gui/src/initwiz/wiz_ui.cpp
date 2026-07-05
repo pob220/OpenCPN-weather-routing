@@ -39,6 +39,7 @@
 #endif  // precompiled headers
 
 #include <regex>
+#include <wx/msgdlg.h>
 #include <wx/sckaddr.h>
 #include <wx/socket.h>
 #include <wx/jsonval.h>
@@ -62,12 +63,44 @@
 extern OCPNPlatform* g_Platform;
 extern std::vector<ocpn_DNS_record_t> g_sk_servers;
 
+namespace {
+
+wxSpinCtrlDouble* AddBoatDoubleField(wxWindow* parent, wxFlexGridSizer* grid,
+                                     const wxString& label, double value,
+                                     double min, double max, double increment,
+                                     int digits,
+                                     const wxString& unit_label) {
+  grid->Add(new wxStaticText(parent, wxID_ANY, label), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  auto* ctrl = new wxSpinCtrlDouble(parent, wxID_ANY, wxEmptyString,
+                                    wxDefaultPosition, wxDefaultSize,
+                                    wxSP_ARROW_KEYS, min, max, value,
+                                    increment);
+  ctrl->SetDigits(digits);
+  grid->Add(ctrl, 0, wxEXPAND | wxALL, 5);
+  grid->Add(new wxStaticText(parent, wxID_ANY, unit_label), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  return ctrl;
+}
+
+wxString BoatProfileValidationMessage(const BoatProfileValidation& validation) {
+  wxString message;
+  for (const auto& error : validation.errors) {
+    if (!message.empty()) message += "\n";
+    message += error;
+  }
+  return message;
+}
+
+}  // namespace
+
 FirstUseWizImpl::FirstUseWizImpl(wxWindow* parent, MyConfig* pConfig,
                                  wxWindowID id, const wxString& title,
                                  const wxBitmap& bitmap, const wxPoint& pos,
                                  long style)
     : FirstUseWiz(parent, id, title, bitmap, pos, style) {
   m_pConfig = pConfig;
+  CreateBoatProfilePage();
 
   wxString svgDir = g_Platform->GetSharedDataDir() + _T("uidata") +
                     wxFileName::GetPathSeparator() + "MUI_flat" +
@@ -105,17 +138,161 @@ FirstUseWizImpl::FirstUseWizImpl(wxWindow* parent, MyConfig* pConfig,
         "tab."));
   // Quick start guide
   m_htmlWinFinish->SetPage(
-      _("<html><body><h1>Welcome to OpenCPN!</h1><p>You have successfully "
+      _("<html><body><h1>Welcome to SuperCPN!</h1><p>You have successfully "
         "completed the initial configuration. You can now start using the "
         "application.</p></body></html>"));
 }
 
 FirstUseWizImpl::~FirstUseWizImpl() = default;
 
+void FirstUseWizImpl::CreateBoatProfilePage() {
+  m_initial_boat_profile = BoatProfileStore::CreateFromCurrentSettings(_("My Boat"));
+
+  auto& service = BoatProfileService::Get();
+  wxString load_error;
+  if (service.Load(&load_error)) {
+    if (const BoatProfile* active_profile = service.GetActiveProfile()) {
+      m_initial_boat_profile = *active_profile;
+    }
+  }
+
+  m_wpBoatProfile = new wxWizardPageSimple(this);
+
+  auto* page_sizer = new wxBoxSizer(wxVERTICAL);
+  auto* scroller =
+      new wxScrolledWindow(m_wpBoatProfile, wxID_ANY, wxDefaultPosition,
+                           wxDefaultSize, wxVSCROLL | wxTAB_TRAVERSAL);
+  scroller->SetScrollRate(5, 5);
+
+  auto* content_sizer = new wxBoxSizer(wxVERTICAL);
+  auto* intro = new wxStaticText(
+      scroller, wxID_ANY,
+      _("Create a boat profile so SuperCPN can use your vessel dimensions "
+        "and speeds for navigation tools."));
+  intro->Wrap(650);
+  content_sizer->Add(intro, 0, wxEXPAND | wxALL, 8);
+
+  auto* profile_box =
+      new wxStaticBoxSizer(wxVERTICAL, scroller, _("Boat profile"));
+  auto* profile_parent = profile_box->GetStaticBox();
+  auto* grid = new wxFlexGridSizer(0, 3, 0, 0);
+  grid->AddGrowableCol(1, 1);
+
+  grid->Add(new wxStaticText(profile_parent, wxID_ANY, _("Profile name")), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  m_tcBoatProfileName = new wxTextCtrl(profile_parent, wxID_ANY,
+                                       m_initial_boat_profile.name);
+  grid->Add(m_tcBoatProfileName, 0, wxEXPAND | wxALL, 5);
+  grid->AddSpacer(1);
+
+  m_scBoatLength =
+      AddBoatDoubleField(profile_parent, grid, _("Length"),
+                         m_initial_boat_profile.length_m, 0.1, 500.0, 0.1, 2,
+                         _("m"));
+  m_scBoatBeam =
+      AddBoatDoubleField(profile_parent, grid, _("Beam"),
+                         m_initial_boat_profile.beam_m, 0.1, 100.0, 0.1, 2,
+                         _("m"));
+  m_scBoatDraft =
+      AddBoatDoubleField(profile_parent, grid, _("Draft"),
+                         m_initial_boat_profile.draft_m, 0.1, 100.0, 0.1, 2,
+                         _("m"));
+  m_scBoatAirDraft =
+      AddBoatDoubleField(profile_parent, grid, _("Air draft"),
+                         m_initial_boat_profile.air_draft_m, 0.1, 200.0, 0.1,
+                         2, _("m"));
+  m_scBoatCruisingSpeed =
+      AddBoatDoubleField(profile_parent, grid, _("Cruising speed"),
+                         m_initial_boat_profile.cruising_speed_kn, 0.1, 200.0,
+                         0.1, 2, _("kn"));
+  m_scBoatMaxSpeed =
+      AddBoatDoubleField(profile_parent, grid, _("Maximum speed"),
+                         m_initial_boat_profile.max_speed_kn, 0.0, 300.0, 0.1,
+                         2, _("kn"));
+
+  profile_box->Add(grid, 0, wxEXPAND | wxALL, 5);
+  content_sizer->Add(profile_box, 0, wxEXPAND | wxALL, 8);
+
+  auto* note = new wxStaticText(
+      scroller, wxID_ANY,
+      _("You can refine this profile later from the boat profile settings."));
+  note->Wrap(650);
+  content_sizer->Add(note, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
+
+  scroller->SetSizer(content_sizer);
+  content_sizer->Fit(scroller);
+  page_sizer->Add(scroller, 1, wxEXPAND | wxALL, 5);
+  m_wpBoatProfile->SetSizer(page_sizer);
+  m_wpBoatProfile->Layout();
+
+  m_pages.Insert(m_wpBoatProfile, 1);
+  RelinkPages();
+}
+
+void FirstUseWizImpl::RelinkPages() {
+  for (unsigned int i = 0; i < m_pages.GetCount(); ++i) {
+    m_pages.Item(i)->SetPrev(i == 0 ? nullptr : m_pages.Item(i - 1));
+    m_pages.Item(i)->SetNext(i + 1 < m_pages.GetCount() ? m_pages.Item(i + 1)
+                                                        : nullptr);
+  }
+}
+
+BoatProfile FirstUseWizImpl::ReadBoatProfilePage() const {
+  BoatProfile profile = m_initial_boat_profile;
+
+  wxString name = m_tcBoatProfileName->GetValue();
+  profile.name = name.Trim(false).Trim();
+  if (profile.id.empty()) profile.id = BoatProfileStore::NewProfileId();
+  profile.length_m = m_scBoatLength->GetValue();
+  profile.beam_m = m_scBoatBeam->GetValue();
+  profile.draft_m = m_scBoatDraft->GetValue();
+  profile.air_draft_m = m_scBoatAirDraft->GetValue();
+  profile.cruising_speed_kn = m_scBoatCruisingSpeed->GetValue();
+  profile.max_speed_kn = m_scBoatMaxSpeed->GetValue();
+
+  return profile;
+}
+
+bool FirstUseWizImpl::SaveBoatProfileFromWizard(wxString* error) {
+  BoatProfile profile = ReadBoatProfilePage();
+  auto validation = BoatProfileStore::Validate(profile);
+  if (!validation.ok) {
+    if (error) *error = BoatProfileValidationMessage(validation);
+    return false;
+  }
+
+  auto& service = BoatProfileService::Get();
+  if (!service.Load(error)) return false;
+
+  bool exists = false;
+  for (const auto& stored_profile : service.GetProfiles()) {
+    if (stored_profile.id == profile.id) {
+      exists = true;
+      break;
+    }
+  }
+
+  if (exists) {
+    if (!service.UpdateProfile(profile, error)) return false;
+  } else {
+    if (!service.AddProfile(profile, error)) return false;
+  }
+  return service.SetActiveProfile(profile.id, error);
+}
+
 void FirstUseWizImpl::OnWizardFinished(wxWizardEvent& event) {
   auto cfg = m_pConfig;
 
   if (!cfg) cfg = g_Platform->GetConfigObject();
+
+  wxString boat_profile_error;
+  if (!SaveBoatProfileFromWizard(&boat_profile_error)) {
+    wxMessageBox(wxString::Format(_("The boat profile could not be saved:\n%s"),
+                                  boat_profile_error),
+                 _("Boat profile"), wxOK | wxICON_WARNING, this);
+    event.Veto();
+    return;
+  }
 
   // Units
   cfg->SetPath(_T("/Settings"));
@@ -735,12 +912,12 @@ void FirstUseWizImpl::m_btnAddChartDirOnButtonClick(wxCommandEvent& event) {
 void FirstUseWizImpl::OnWizardPageShown(wxWizardEvent& event) {
   if (event.GetPage() == m_pages[0]) {
     // Units
-  } else if (event.GetPage() == m_pages[1]) {
+  } else if (event.GetPage() == m_pages[2]) {
     // Connections
     if (m_clSources->IsEmpty()) {
       EnumerateDatasources();
     }
-  } else if (event.GetPage() == m_pages[2]) {
+  } else if (event.GetPage() == m_pages[3]) {
     // Charts
     // TODO: Maybe look somewhere for charts proactively, but it will be slow...
   }

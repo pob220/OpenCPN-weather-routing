@@ -158,6 +158,12 @@
 #include "androidUTIL.h"
 #endif
 
+namespace {
+void HideMainToolbarTooltip() {
+  if (g_MainToolbar) g_MainToolbar->HideTooltip();
+}
+}  // namespace
+
 //  For Windows and GTK, provide the expected application Minimize/Close bar
 static constexpr long kFrameStyle = wxDEFAULT_FRAME_STYLE | wxWANTS_CHARS;
 
@@ -657,7 +663,7 @@ MyFrame::MyFrame(const wxString &title, const wxPoint &pos, const wxSize &size,
           "A Persistent track recording will therefore be restarted for this "
           "target.\n\n"
           "Do you instead want to stop Persistent tracking for this target?"),
-        _("OpenCPN Info"), wxYES_NO | wxCENTER, 60);
+        _("SuperCPN Info"), wxYES_NO | wxCENTER, 60);
     return r == wxID_YES;
   };
   ais_callbacks.get_target_mmsi = []() {
@@ -844,10 +850,10 @@ void MyFrame::StartRebuildChartDatabase() {
     //              given in the config file
     if (g_NeedDBUpdate == 1) {
       wxString msg1(
-          _("OpenCPN needs to update the chart database from config file "
+          _("SuperCPN needs to update the chart database from config file "
             "entries...."));
 
-      OCPNMessageDialog mdlg(gFrame, msg1, wxString(_("OpenCPN Info")),
+      OCPNMessageDialog mdlg(gFrame, msg1, wxString(_("SuperCPN Info")),
                              wxICON_INFORMATION | wxOK);
       mdlg.ShowModal();
     }
@@ -864,7 +870,7 @@ void MyFrame::StartRebuildChartDatabase() {
     wxString dummy2 = _("Estimated time : ");
     wxString dummy3 = _("Remaining time : ");
     wxGenericProgressDialog *pprog = new wxGenericProgressDialog(
-        _("OpenCPN Chart Update"), line, 100, NULL, wxPD_SMOOTH);
+        _("SuperCPN Chart Update"), line, 100, NULL, wxPD_SMOOTH);
 
     LoadS57();
     ChartData->Create(ChartDirArray, pprog);
@@ -2337,7 +2343,7 @@ void MyFrame::RefreshGroupIndices() {
 }
 
 void MyFrame::OnToolLeftClick(wxCommandEvent &event) {
-  if (g_MainToolbar) g_MainToolbar->HideTooltip();
+  HideMainToolbarTooltip();
 
   switch (event.GetId()) {
     case ID_MENU_SCALE_OUT:
@@ -2494,7 +2500,7 @@ void MyFrame::OnToolLeftClick(wxCommandEvent &event) {
 
     case wxID_PREFERENCES:
     case ID_SETTINGS: {
-      g_MainToolbar->HideTooltip();
+      HideMainToolbarTooltip();
       DoSettings();
       break;
     }
@@ -2519,7 +2525,7 @@ void MyFrame::OnToolLeftClick(wxCommandEvent &event) {
     case ID_MENU_SETTINGS_BASIC: {
 #ifdef __ANDROID__
       androidDisableFullScreen();
-      g_MainToolbar->HideTooltip();
+      HideMainToolbarTooltip();
       DoAndroidPreferences();
 #else
       DoSettings();
@@ -2728,7 +2734,7 @@ void MyFrame::OnToolLeftClick(wxCommandEvent &event) {
       //        If found, make the callback.
       //        TODO Modify this to allow multiple tools per plugin
       if (g_pi_manager) {
-        g_MainToolbar->HideTooltip();
+        HideMainToolbarTooltip();
 
         ArrayOfPlugInToolbarTools tool_array =
             g_pi_manager->GetPluginToolbarToolArray();
@@ -2760,7 +2766,9 @@ void MyFrame::OnToolLeftClick(wxCommandEvent &event) {
 bool MyFrame::SetGlobalToolbarViz(bool viz) {
   bool viz_now = g_bmasterToolbarFull;
 
-  g_MainToolbar->HideTooltip();
+  if (!g_MainToolbar) return viz_now;
+
+  HideMainToolbarTooltip();
   wxString tip = _("Show Toolbar");
   if (viz) {
     tip = _("Hide Toolbar");
@@ -2866,6 +2874,8 @@ ChartCanvas *MyFrame::GetFocusCanvas() {
 }
 
 void MyFrame::OnToolbarAnimateTimer(wxTimerEvent &event) {
+  if (!g_MainToolbar) return;
+
   if (g_bmasterToolbarFull) {
 #ifndef OCPN_TOOLBAR_ANIMATE
     m_nMasterToolCountShown = (int)g_MainToolbar->GetToolCount();
@@ -3575,7 +3585,7 @@ void MyFrame::RegisterGlobalMenuItems() {
                    _menuText(_("Smaller Scale Chart"), "Ctrl-Right"));
 #ifndef __WXOSX__
   nav_menu->AppendSeparator();
-  nav_menu->Append(ID_MENU_OQUIT, _menuText(_("Exit OpenCPN"), "Ctrl-Q"));
+  nav_menu->Append(ID_MENU_OQUIT, _menuText(_("Exit SuperCPN"), "Ctrl-Q"));
 #endif
   m_pMenuBar->Append(nav_menu, _("&Navigate"));
 
@@ -3709,8 +3719,8 @@ void MyFrame::RegisterGlobalMenuItems() {
 #endif
 
   wxMenu *help_menu = new wxMenu();
-  help_menu->Append(wxID_ABOUT, _("About OpenCPN"));
-  help_menu->Append(wxID_HELP, _("OpenCPN Help"));
+  help_menu->Append(wxID_ABOUT, _("About SuperCPN"));
+  help_menu->Append(wxID_HELP, _("SuperCPN Help"));
   m_pMenuBar->Append(help_menu, _("&Help"));
 
   // Set initial values for menu check items and radio items
@@ -4097,8 +4107,8 @@ void MyFrame::ProcessOptionsDialog(int rr, ArrayOfCDI *pNewDirArray) {
   if (rr & STYLE_CHANGED) {
     OCPNMessageBox(
         NULL,
-        _("Please restart OpenCPN to activate language or style changes."),
-        _("OpenCPN Info"), wxOK | wxICON_INFORMATION);
+        _("Please restart SuperCPN to activate language or style changes."),
+        _("SuperCPN Info"), wxOK | wxICON_INFORMATION);
   }
 
   bool charts_updating =
@@ -4249,7 +4259,8 @@ void MyFrame::ProcessOptionsDialog(int rr, ArrayOfCDI *pNewDirArray) {
 
   // Change of master toolbar scale?
   bool b_masterScaleChange = false;
-  if (fabs(g_MainToolbar->GetScaleFactor() - g_toolbar_scalefactor) > 0.01f)
+  if (g_MainToolbar &&
+      fabs(g_MainToolbar->GetScaleFactor() - g_toolbar_scalefactor) > 0.01f)
     b_masterScaleChange = true;
 
   if ((rr & TOOLBAR_CHANGED) || b_masterScaleChange)
@@ -4433,7 +4444,7 @@ bool MyFrame::UpdateChartDatabaseInplace(ArrayOfCDI &DirArray, bool b_force,
   AbstractPlatform::ShowBusySpinner();
 
   if (b_prog) {
-    wxString longmsg = _("OpenCPN Chart Update");
+    wxString longmsg = _("SuperCPN Chart Update");
     longmsg +=
         ".................................................................."
         "........";
@@ -4443,7 +4454,7 @@ bool MyFrame::UpdateChartDatabaseInplace(ArrayOfCDI &DirArray, bool b_force,
     wxFont *qFont = GetOCPNScaledFont(_("Dialog"));
     Updateprog->SetFont(*qFont);
 
-    Updateprog->Create(_("OpenCPN Chart Update"), longmsg, 100, gFrame,
+    Updateprog->Create(_("SuperCPN Chart Update"), longmsg, 100, gFrame,
                        wxPD_SMOOTH | wxPD_ELAPSED_TIME | wxPD_ESTIMATED_TIME |
                            wxPD_REMAINING_TIME);
 
@@ -6891,7 +6902,7 @@ ocpnToolBarSimple *MyFrame::CreateMasterToolbar() {
 
   tic = new ToolbarItemContainer(
       ID_ABOUT, style->GetToolIcon("MUI_help", TOOLICON_NORMAL), wxITEM_NORMAL,
-      _("About OpenCPN"), "MUI_help");
+      _("About SuperCPN"), "MUI_help");
   g_MainToolbar->AddToolItem(tic);
 
   //      Add any PlugIn toolbar tools that request default positioning
@@ -6968,7 +6979,7 @@ bool MyFrame::CheckAndAddPlugInTool() {
       }
 
       ToolbarItemContainer *tic = new ToolbarItemContainer(
-          pttc->id, *(ptool_bmp), pttc->kind, pttc->shortHelp, "");
+          pttc->id, *(ptool_bmp), pttc->kind, pttc->shortHelp, pttc->label);
 
       tic->m_NormalIconSVG = pttc->pluginNormalIconSVG;
       tic->m_RolloverIconSVG = pttc->pluginRolloverIconSVG;
@@ -7024,7 +7035,7 @@ bool MyFrame::AddDefaultPositionPlugInTools() {
       }
 
       ToolbarItemContainer *tic = new ToolbarItemContainer(
-          pttc->id, *(ptool_bmp), pttc->kind, pttc->shortHelp, "");
+          pttc->id, *(ptool_bmp), pttc->kind, pttc->shortHelp, pttc->label);
 
       tic->m_NormalIconSVG = pttc->pluginNormalIconSVG;
       tic->m_RolloverIconSVG = pttc->pluginRolloverIconSVG;
@@ -7428,7 +7439,7 @@ void ParseAllENC(wxWindow *parent) {
     wxFont *qFont = GetOCPNScaledFont(_("Dialog"));
     prog->SetFont(*qFont);
 
-    prog->Create(_("OpenCPN ENC Prepare"), "Longgggggggggggggggggggggggggggg",
+    prog->Create(_("SuperCPN ENC Prepare"), "Longgggggggggggggggggggggggggggg",
                  count + 1, parent, style);
 
     // make wider to show long filenames

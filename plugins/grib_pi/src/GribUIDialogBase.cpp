@@ -3045,6 +3045,12 @@ GribRequestSettingBase::GribRequestSettingBase(GRIBUICtrlBarBase* parent,
   wxBoxSizer* bSizerMain;
   bSizerMain = new wxBoxSizer(wxVERTICAL);
 
+  m_boatProfileText =
+      new wxStaticText(this, wxID_ANY, _("Boat Profile: Safe fallback"),
+                       wxDefaultPosition, wxDefaultSize, 0);
+  m_boatProfileText->Wrap(-1);
+  bSizerMain->Add(m_boatProfileText, 0, wxEXPAND | wxALL, 5);
+
   m_notebookGetGrib =
       new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0);
 

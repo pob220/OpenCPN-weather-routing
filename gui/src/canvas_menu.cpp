@@ -1759,7 +1759,7 @@ void CanvasMenuHandler::PopupMenuHandler(wxCommandEvent &event) {
           dlg.SetScanOnCreate(true);
 
         dlg.SetScanTime(5);  // seconds
-        dlg.Create(NULL, -1, _("Send Waypoint to OpenCPN Peer") + "...", "");
+        dlg.Create(NULL, -1, _("Send Waypoint to SuperCPN Peer") + "...", "");
         dlg.ShowModal();
       }
       break;
@@ -1803,7 +1803,7 @@ void CanvasMenuHandler::PopupMenuHandler(wxCommandEvent &event) {
           dlg.SetScanOnCreate(true);
 
         dlg.SetScanTime(5);  // seconds
-        dlg.Create(NULL, -1, _("Send Route to OpenCPN Peer") + "...", "");
+        dlg.Create(NULL, -1, _("Send Route to SuperCPN Peer") + "...", "");
         dlg.ShowModal();
       }
       break;
@@ -1893,7 +1893,7 @@ void CanvasMenuHandler::PopupMenuHandler(wxCommandEvent &event) {
       if (g_bConfirmObjectDelete) {
         dlg_return = OCPNMessageBox(
             parent, _("Are you sure you want to delete this track?"),
-            _("OpenCPN Track Delete"),
+            _("SuperCPN Track Delete"),
             (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
       }
 
@@ -1935,7 +1935,7 @@ void CanvasMenuHandler::PopupMenuHandler(wxCommandEvent &event) {
           dlg.SetScanOnCreate(true);
 
         dlg.SetScanTime(5);  // seconds
-        dlg.Create(NULL, -1, _("Send Track to OpenCPN Peer") + "...", "");
+        dlg.Create(NULL, -1, _("Send Track to SuperCPN Peer") + "...", "");
         dlg.ShowModal();
       }
       break;

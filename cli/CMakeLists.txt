@@ -20,14 +20,15 @@
 
 
 set(SRC_CONSOLE console.cpp api_shim.cpp)
-add_executable(opencpn-cmd ${SRC_CONSOLE})
-set_property(TARGET opencpn-cmd PROPERTY ENABLE_EXPORTS ON)
+set(CLI_TARGET ${OCPN_APP_PACKAGE_NAME}-cmd)
+add_executable(${CLI_TARGET} ${SRC_CONSOLE})
+set_property(TARGET ${CLI_TARGET} PROPERTY ENABLE_EXPORTS ON)
 if (NOT "${ENABLE_SANITIZER}" MATCHES "none")
-  target_link_libraries(opencpn-cmd PRIVATE -fsanitize=${ENABLE_SANITIZER})
+  target_link_libraries(${CLI_TARGET} PRIVATE -fsanitize=${ENABLE_SANITIZER})
 endif ()
 
 target_include_directories(
-  opencpn-cmd
+  ${CLI_TARGET}
     PRIVATE
       ${PROJECT_SOURCE_DIR}/include
       # ${PROJECT_SOURCE_DIR}/test/include
@@ -35,58 +36,58 @@ target_include_directories(
       ${PROJECT_SOURCE_DIR}/gui/include
 )
 
-target_compile_definitions(opencpn-cmd PUBLIC USE_MOCK_DEFS)
+target_compile_definitions(${CLI_TARGET} PUBLIC USE_MOCK_DEFS)
 if (MSVC)
-  target_link_libraries(opencpn-cmd PRIVATE setupapi.lib psapi.lib)
+  target_link_libraries(${CLI_TARGET} PRIVATE setupapi.lib psapi.lib)
 endif ()
 
 if (TARGET ocpn::wxcurl)
-  target_link_libraries(opencpn-cmd PRIVATE ocpn::wxcurl)
+  target_link_libraries(${CLI_TARGET} PRIVATE ocpn::wxcurl)
 else ()
-  target_link_libraries(opencpn-cmd PRIVATE ${SYS_WXCURL_LIBRARIES})
+  target_link_libraries(${CLI_TARGET} PRIVATE ${SYS_WXCURL_LIBRARIES})
 endif ()
 
-target_link_libraries(opencpn-cmd PRIVATE ${wxWidgets_LIBRARIES})
+target_link_libraries(${CLI_TARGET} PRIVATE ${wxWidgets_LIBRARIES})
 if (TARGET ocpn::wxsvg)
-  target_link_libraries(opencpn-cmd PRIVATE ocpn::wxsvg)
+  target_link_libraries(${CLI_TARGET} PRIVATE ocpn::wxsvg)
 endif ()
 
 
-target_link_libraries(opencpn-cmd PRIVATE ocpn::serial)
-target_link_libraries(opencpn-cmd PRIVATE ocpn::tinyxml)
-target_link_libraries(opencpn-cmd PRIVATE ocpn::filesystem)
-target_link_libraries(opencpn-cmd PRIVATE ocpn::gl-headers)
+target_link_libraries(${CLI_TARGET} PRIVATE ocpn::serial)
+target_link_libraries(${CLI_TARGET} PRIVATE ocpn::tinyxml)
+target_link_libraries(${CLI_TARGET} PRIVATE ocpn::filesystem)
+target_link_libraries(${CLI_TARGET} PRIVATE ocpn::gl-headers)
 
 if (HAVE_LIBUDEV)
-  target_link_libraries(opencpn-cmd PRIVATE ocpn::libudev)
+  target_link_libraries(${CLI_TARGET} PRIVATE ocpn::libudev)
 endif ()
 
 if(APPLE AND OCPN_USE_DEPS_BUNDLE)
   target_include_directories(
-    opencpn-cmd PUBLIC ${OCPN_DEPS_BUNDLE_PATH}/include
+    ${CLI_TARGET} PUBLIC ${OCPN_DEPS_BUNDLE_PATH}/include
   )
 endif()
 
-target_link_libraries(opencpn-cmd PRIVATE ocpn::model ocpn::model-src)
+target_link_libraries(${CLI_TARGET} PRIVATE ocpn::model ocpn::model-src)
 if (MSVC)
-  target_link_libraries(opencpn-cmd PRIVATE  iphlpapi)
+  target_link_libraries(${CLI_TARGET} PRIVATE  iphlpapi)
 endif ()
 
 
 if (WIN32)
-  install(TARGETS opencpn-cmd RUNTIME DESTINATION ".")
+  install(TARGETS ${CLI_TARGET} RUNTIME DESTINATION ".")
 else()
-  install(TARGETS opencpn-cmd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  install(TARGETS ${CLI_TARGET} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif ()
 
 if (APPLE)
   install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/opencpn-cmd
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/${CLI_TARGET}
     DESTINATION "bin/OpenCPN.app/Contents/MacOS"
     PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
       WORLD_EXECUTE GROUP_EXECUTE OWNER_EXECUTE
   )
-  set_target_properties(opencpn-cmd PROPERTIES
+  set_target_properties(${CLI_TARGET} PROPERTIES
                                XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME YES
   )
 endif ()

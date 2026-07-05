@@ -59,7 +59,7 @@ typedef void (*_GLUfuncptr)();
 #include <wx/tokenzr.h>
 
 static const char* USAGE = R"""(
-Usage: opencpn-glutil [options] <command> [arguments]
+Usage: supercpn-glutil [options] <command> [arguments]
 
 Options:
 
@@ -112,7 +112,7 @@ public:
     if (wxGetEnv("WAYLAND_DISPLAY", nullptr)) setenv("GDK_BACKEND", "x11", 1);
 #endif  // __linux__
     CheckBuildOptions(WX_BUILD_OPTIONS_SIGNATURE, "program");
-    SetAppName("opencpn-glutil");
+    SetAppName(OCPN_APP_PACKAGE_NAME "-glutil");
   }
 
   void OnInitCmdLine(wxCmdLineParser& parser) override {

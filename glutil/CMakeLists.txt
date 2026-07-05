@@ -20,7 +20,7 @@
 
 
 set(SRC_CONSOLE console.cpp)
-set(APP_TARGET  opencpn-glutil)
+set(APP_TARGET ${OCPN_APP_PACKAGE_NAME}-glutil)
 if(WIN32)
   add_executable(${APP_TARGET} WIN32 ${SRC_CONSOLE})
 else()

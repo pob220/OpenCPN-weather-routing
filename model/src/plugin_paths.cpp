@@ -145,23 +145,32 @@ void PluginPaths::InitLinuxPaths() {
     exe_buf[len] = '\0';
     wxFileName fn(exe_buf);
     std::string path = fn.GetPath().ToStdString();
-    base_plugin_paths.push_back(expand(path + "/../lib/opencpn"));
+    base_plugin_paths.push_back(expand(path + "/../lib/" OCPN_APP_PACKAGE_NAME));
     if (g_BasePlatform->GetOSDetail()->osd_arch.find("64") != string::npos) {
-      base_plugin_paths.push_back(expand(path + "/../lib64/opencpn"));
+      base_plugin_paths.push_back(
+          expand(path + "/../lib64/" OCPN_APP_PACKAGE_NAME));
     } else {
-      base_plugin_paths.push_back(expand(path + "/../lib32/opencpn"));
+      base_plugin_paths.push_back(
+          expand(path + "/../lib32/" OCPN_APP_PACKAGE_NAME));
     }
   }
 #endif
 
-  const char* const envdirs = getenv("OPENCPN_PLUGIN_DIRS");
-  string dirlist = envdirs ? envdirs : "~/.local/lib/opencpn";
+  const char* const envdirs = getenv("SUPERCPN_PLUGIN_DIRS");
+  string dirlist = envdirs ? envdirs : "~/.local/lib/" OCPN_APP_PACKAGE_NAME;
   m_libdirs = split(dirlist, ':');
   for (auto& dir : m_libdirs) {
     dir = expand(dir);
   }
   for (auto& base_plugin_path : base_plugin_paths) {
-    if (envdirs == 0 && dirlist.find(base_plugin_path) == string::npos) {
+    bool already_listed = false;
+    for (const auto& dir : m_libdirs) {
+      if (dir == base_plugin_path) {
+        already_listed = true;
+        break;
+      }
+    }
+    if (envdirs == 0 && !already_listed) {
       if (ocpn::exists(base_plugin_path)) {
         m_libdirs.push_back(base_plugin_path);
       }
@@ -171,9 +180,9 @@ void PluginPaths::InitLinuxPaths() {
   for (auto& dir : m_bindirs) {
     // Fails on Debian multilib paths like /usr/lib/x86_64-linux-gnu.
     // But we don't use those even on Debian.
-    size_t pos = dir.rfind("/lib/opencpn");
+    size_t pos = dir.rfind("/lib/" OCPN_APP_PACKAGE_NAME);
     if (pos == string::npos) {
-      pos = dir.rfind("/lib64/opencpn");
+      pos = dir.rfind("/lib64/" OCPN_APP_PACKAGE_NAME);
     }
     dir = pos == string::npos ? dir : dir.substr(0, pos) + "/bin";
   }
@@ -181,7 +190,7 @@ void PluginPaths::InitLinuxPaths() {
   dirlist = xdg_data_dirs ? xdg_data_dirs : "~/.local/lib";
   m_datadirs = split(dirlist, ':');
   for (auto& dir : m_datadirs) {
-    dir += "/opencpn/plugins";
+    dir += "/" OCPN_APP_PACKAGE_NAME "/plugins";
   }
   for (auto& base_plugin_path : base_plugin_paths) {
     if (xdg_data_dirs == 0 && dirlist.find(base_plugin_path) == string::npos) {

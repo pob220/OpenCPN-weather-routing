@@ -10,13 +10,13 @@
             BEGIN
                 BLOCK "040904E4"
                     BEGIN
-                        VALUE "CompanyName",      "OpenCPN.org\0"
-                        VALUE "FileDescription",  "Chart Plotter and Navigator\0"
+                        VALUE "CompanyName",      "SuperCPN\0"
+                        VALUE "FileDescription",  "SuperCPN Chart Plotter and Navigator\0"
                         VALUE "FileVersion",      "${VERSION_MAJOR},${VERSION_MINOR},${VERSION_PATCH}\0"
                         VALUE "InternalName",     "opencpn.exe\0"
                         VALUE "LegalCopyright",   "GPL v2\0"
                         VALUE "OriginalFilename", "opencpn.exe\0"
-                        VALUE "ProductName",      "OpenCPN\0"
+                        VALUE "ProductName",      "SuperCPN\0"
                         VALUE "ProductVersion",   "${VERSION_MAJOR},${VERSION_MINOR}\0"
                     END
             END

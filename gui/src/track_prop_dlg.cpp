@@ -59,7 +59,7 @@
   1  //!< Format date/time using timezone configured in the operating system.
 #define LMTINPUT \
   2  //!< Format date/time using Local Mean Time (LMT) at a given point.
-/** Format date/time according to global OpenCPN settings. */
+/** Format date/time according to global SuperCPN settings. */
 #define GLOBAL_SETTINGS_INPUT 3
 
 #define INPUT_FORMAT 1

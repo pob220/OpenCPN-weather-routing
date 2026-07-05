@@ -42,13 +42,14 @@
 
 #include <wx/string.h>
 
+#include "config.h"
 #include "model/base_platform.h"
 #include "model/ocpn_utils.h"
 
 #include "model/std_instance_chk.h"
 #include "std_filesystem.h"
 
-static const char* const kName = "_OpenCPN_SILock";
+static const char* const kName = "_" OCPN_APP_PACKAGE_NAME "_SILock";
 
 static int GetLockfilePid(const std::string& path) {
   std::ifstream f(path.c_str());

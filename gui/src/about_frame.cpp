@@ -66,7 +66,7 @@ AboutFrame::AboutFrame(wxWindow* parent, wxWindowID id, const wxString& title,
   bSizerAbout = new wxBoxSizer(wxVERTICAL);
 
   m_staticTextOCPN =
-      new wxStaticText(m_scrolledWindowAbout, wxID_ANY, _("OpenCPN"),
+      new wxStaticText(m_scrolledWindowAbout, wxID_ANY, _("SuperCPN"),
                        wxDefaultPosition, wxDefaultSize, 0);
   m_staticTextOCPN->Wrap(-1);
   m_staticTextOCPN->SetFont(wxFont(30, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
@@ -107,7 +107,7 @@ AboutFrame::AboutFrame(wxWindow* parent, wxWindowID id, const wxString& title,
 
   m_staticTextDescription = new wxStaticText(
       m_scrolledWindowAbout, wxID_ANY,
-      _("OpenCPN is a Free Software project, built by sailors.\nIt is freely "
+      _("SuperCPN is a Free Software project, built by sailors.\nIt is freely "
         "available to download and distribute without charge."),
       wxDefaultPosition, wxDefaultSize, 0);
   m_staticTextDescription->Wrap(380);

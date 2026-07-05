@@ -52,7 +52,7 @@ public:
  *
  * @return Pointer to a dynamically scaled wxFont
  *
- * @note Font is managed by OpenCPN's central font cache
+ * @note Font is managed by SuperCPN's central font cache
  * @note Pointer is shared and should not be deleted by caller
  */
 wxFont* GetOCPNScaledFont(wxString item, int default_size = 0);

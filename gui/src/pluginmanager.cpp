@@ -287,7 +287,7 @@ public:
 
 private:
   void show_msg(wxString msg) {
-    OCPNMessageBox(NULL, msg, wxString(_("OpenCPN Info")),
+    OCPNMessageBox(NULL, msg, wxString(_("SuperCPN Info")),
                    wxICON_INFORMATION | wxOK, 10);  // 10 second timeout
   }
 
@@ -333,9 +333,9 @@ wxString message_by_status(PluginStatus stat) {
     case PluginStatus::System:
       return _("Plugin is a standard system plugin");
     case PluginStatus::Managed:
-      return _("Plugin is managed by OpenCPN");
+      return _("Plugin is managed by SuperCPN");
     case PluginStatus::Unmanaged:
-      return _("Plugin is not managed by OpenCPN");
+      return _("Plugin is not managed by SuperCPN");
     case PluginStatus::Ghost:
       return ("");
     case PluginStatus::Unknown:
@@ -602,9 +602,9 @@ static void run_update_dialog(PluginListPanel* parent, const PlugInData* pic,
         auto loader = PluginLoader::GetInstance();
         if (!loader->CheckPluginCompatibility(str)) {
           wxString msg =
-              _("The plugin is not compatible with this version of OpenCPN, "
+              _("The plugin is not compatible with this version of SuperCPN, "
                 "and will be uninstalled.");
-          OCPNMessageBox(NULL, msg, wxString(_("OpenCPN Info")),
+          OCPNMessageBox(NULL, msg, wxString(_("SuperCPN Info")),
                          wxICON_INFORMATION | wxOK, 10);
 
           PluginHandler::CleanupFiles(manifestPath, update.name);
@@ -855,7 +855,7 @@ EVT_CURL_DOWNLOAD(CurlThreadId, PlugInManager::OnCurlDownload)
 END_EVENT_TABLE()
 
 static void event_message_box(const wxString& msg) {
-  OCPNMessageBox(NULL, msg, wxString(_("OpenCPN Info")),
+  OCPNMessageBox(NULL, msg, wxString(_("SuperCPN Info")),
                  wxICON_INFORMATION | wxOK, 0);  // no timeout
 }
 
@@ -2160,7 +2160,7 @@ opencpn_plugin* PlugInManager::GetProvidingPlugin(
 //-------------------------------------------------------------------------------
 
 #define DISABLED_SETTINGS_MSG                                               \
-  _("These settings might destabilize OpenCPN and are by default disabled." \
+  _("These settings might destabilize SuperCPN and are by default disabled." \
     " To despite the dangers enable them manually add a CatalogExpert=1"    \
     " line in the [PlugIns] section in the configuration file.")
 
@@ -2315,7 +2315,7 @@ void CatalogMgrPanel::OnUpdateButton(wxCommandEvent& event) {
   std::string message;
   if (status != CatalogHandler::ServerStatus::OK) {
     message = _("Cannot download data from url");
-    OCPNMessageBox(this, message, _("OpenCPN Catalog update"),
+    OCPNMessageBox(this, message, _("SuperCPN Catalog update"),
                    wxICON_ERROR | wxOK);
     return;
   }
@@ -2327,7 +2327,7 @@ void CatalogMgrPanel::OnUpdateButton(wxCommandEvent& event) {
                                  wxFileName::GetPathSeparator() +
                                  "ocpn-plugins.xml")) {
     OCPNMessageBox(this, _("Unable to copy catalog file"),
-                   _("OpenCPN Catalog update"), wxICON_ERROR | wxOK);
+                   _("SuperCPN Catalog update"), wxICON_ERROR | wxOK);
     return;
   }
 #else
@@ -2336,7 +2336,7 @@ void CatalogMgrPanel::OnUpdateButton(wxCommandEvent& event) {
                   g_Platform->GetPrivateDataDir() +
                       wxFileName::GetPathSeparator() + "ocpn-plugins.xml")) {
     OCPNMessageBox(this, _("Unable to copy catalog file"),
-                   _("OpenCPN Catalog update"), wxICON_ERROR | wxOK);
+                   _("SuperCPN Catalog update"), wxICON_ERROR | wxOK);
     return;
   }
 #endif
@@ -2345,7 +2345,7 @@ void CatalogMgrPanel::OnUpdateButton(wxCommandEvent& event) {
   if (catalog == "master") {
     if (!ocpn::store_metadata(filePath.c_str())) {
       OCPNMessageBox(this, _("Unable to copy catalog file to cache"),
-                     _("OpenCPN Catalog update"), wxICON_ERROR | wxOK);
+                     _("SuperCPN Catalog update"), wxICON_ERROR | wxOK);
       return;
     }
   }
@@ -2375,7 +2375,7 @@ void CatalogMgrPanel::OnUpdateButton(wxCommandEvent& event) {
 #endif
   if (m_PluginListPanel) m_PluginListPanel->ReloadPluginPanels();
   OCPNMessageBox(this, _("Catalog update successful"),
-                 _("OpenCPN Catalog update"), wxICON_INFORMATION | wxOK);
+                 _("SuperCPN Catalog update"), wxICON_INFORMATION | wxOK);
 }
 
 void CatalogMgrPanel::OnPluginSettingsButton(wxCommandEvent& event) {
@@ -2409,12 +2409,12 @@ void CatalogMgrPanel::OnTarballButton(wxCommandEvent& event) {
     OCPNMessageBox(
         this,
         _("Error extracting metadata from tarball (missing metadata.xml?)"),
-        _("OpenCPN Plugin Import Error"));
+        _("SuperCPN Plugin Import Error"));
     return;
   }
   if (!PluginHandler::IsCompatible(metadata)) {
     OCPNMessageBox(this, _("Incompatible import plugin detected."),
-                   _("OpenCPN Plugin Import Error"));
+                   _("SuperCPN Plugin Import Error"));
     handler->Uninstall(metadata.name);
     return;
   }
@@ -2422,7 +2422,7 @@ void CatalogMgrPanel::OnTarballButton(wxCommandEvent& event) {
   ok = handler->InstallPlugin(metadata, path.ToStdString());
   if (!ok) {
     OCPNMessageBox(this, _("Error extracting import plugin tarball."),
-                   _("OpenCPN Plugin Import Error"));
+                   _("SuperCPN Plugin Import Error"));
     return;
   }
   metadata.is_imported = true;

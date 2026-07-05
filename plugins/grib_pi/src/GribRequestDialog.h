@@ -53,6 +53,7 @@
 
 #include "GribUIDialogBase.h"
 #include "GribUIDialog.h"
+#include "model/boat_profile_service.h"
 #include "pi_ocpndc.h"
 #include "wx/jsonreader.h"
 
@@ -289,6 +290,10 @@ private:
 
   // Xygrib internal methods
   void InitializeXygribDialog();
+  void ApplyBoatProfileDefaults();
+  void UpdateActiveBoatProfileUi();
+  int FindChoiceByNumericValue(wxChoice* choice, double value) const;
+  int FindIntervalChoice(int hours) const;
   wxString BuildXyGribUrl();
   wxString BuildGribFileName();
   // XyGrib GUI callbacks
@@ -308,6 +313,7 @@ private:
   int m_selectedWaveModelIndex;
   // Last size estimation of the GRIB file
   int m_gribSizeEstimate;
+  int m_boatProfileListenerId;
 
   GRIBUICtrlBar &m_parent;
 

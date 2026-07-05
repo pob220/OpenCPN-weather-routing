@@ -339,7 +339,7 @@ endif (APPLE)
 
 if (UNIX AND NOT APPLE)
   if (NOT DEFINED PREFIX_PLUGINS)
-    set(PREFIX_PLUGINS /usr/local/lib/opencpn)
+    set(PREFIX_PLUGINS /usr/local/lib/${OCPN_APP_PACKAGE_NAME})
   endif (NOT DEFINED PREFIX_PLUGINS)
 
   install(

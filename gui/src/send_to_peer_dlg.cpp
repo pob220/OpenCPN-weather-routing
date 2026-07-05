@@ -57,7 +57,7 @@
 static PeerDlgResult ConfirmWriteDlg() {
   std::string msg(_("Objects exists on server. OK to overwrite?"));
   long style = wxYES | wxNO | wxNO_DEFAULT | wxICON_QUESTION;
-  OCPNMessageDialog dlg(NULL, msg, _("OpenCPN Info"), style);
+  OCPNMessageDialog dlg(NULL, msg, _("SuperCPN Info"), style);
   int reply = dlg.ShowModal();
   return reply == wxID_YES ? PeerDlgResult::Ok : PeerDlgResult::Cancel;
 }
@@ -72,7 +72,7 @@ static PeerDlgResult RunStatusDlg(PeerDlg kind, int status) {
         ss << _("Curl transfer error: ")
            << curl_easy_strerror(static_cast<CURLcode>(-status));
       }
-      OCPNMessageDialog dlg(NULL, ss.str(), _("OpenCPN Info"),
+      OCPNMessageDialog dlg(NULL, ss.str(), _("SuperCPN Info"),
                             wxICON_ERROR | wxOK | wxCANCEL);
       int r = dlg.ShowModal();
       return r == wxID_OK ? PeerDlgResult::Ok : PeerDlgResult::Cancel;
@@ -80,7 +80,7 @@ static PeerDlgResult RunStatusDlg(PeerDlg kind, int status) {
     case PeerDlg::ErrorReturn: {
       std::stringstream ss;
       ss << _("Server internal error response:") << status;
-      OCPNMessageDialog dlg(NULL, ss.str(), _("OpenCPN Info"),
+      OCPNMessageDialog dlg(NULL, ss.str(), _("SuperCPN Info"),
                             wxICON_ERROR | wxOK | wxCANCEL);
       int r = dlg.ShowModal();
       return r == wxID_OK ? PeerDlgResult::Ok : PeerDlgResult::Cancel;
@@ -88,28 +88,28 @@ static PeerDlgResult RunStatusDlg(PeerDlg kind, int status) {
     case PeerDlg::TransferOk: {
       std::stringstream ss;
       std::string msg(_("Transfer successfully completed"));
-      OCPNMessageDialog dlg(NULL, msg, _("OpenCPN Info"),
+      OCPNMessageDialog dlg(NULL, msg, _("SuperCPN Info"),
                             wxICON_INFORMATION | wxOK);
       dlg.ShowModal();
       return PeerDlgResult::Ok;
     }
     case PeerDlg::JsonParseError: {
       std::string msg(_("Cannot parse server reply"));
-      OCPNMessageDialog dlg(NULL, msg, _("OpenCPN Info"),
+      OCPNMessageDialog dlg(NULL, msg, _("SuperCPN Info"),
                             wxICON_ERROR | wxOK | wxCANCEL);
       int r = dlg.ShowModal();
       return r == wxID_OK ? PeerDlgResult::Ok : PeerDlgResult::Cancel;
     }
     case PeerDlg::BadPincode: {
       std::string msg(_("Pincode not accepted"));
-      OCPNMessageDialog dlg(NULL, msg, _("OpenCPN Info"),
+      OCPNMessageDialog dlg(NULL, msg, _("SuperCPN Info"),
                             wxICON_ERROR | wxOK | wxCANCEL);
       int r = dlg.ShowModal();
       return r == wxID_OK ? PeerDlgResult::Ok : PeerDlgResult::Cancel;
     }
     case PeerDlg::ActivateUnsupported: {
       std::string msg(_("Server does not support activation"));
-      OCPNMessageDialog dlg(NULL, msg, _("OpenCPN Info"),
+      OCPNMessageDialog dlg(NULL, msg, _("SuperCPN Info"),
                             wxICON_ERROR | wxOK | wxCANCEL);
 
       int r = dlg.ShowModal();
@@ -136,7 +136,7 @@ static void ParsePeer(const wxString& ui_value, PeerData& peer_data) {
 
 std::pair<PeerDlgResult, std::string> RunPincodeDlg() {
   PinConfirmDlg dlg(wxTheApp->GetTopWindow(), wxID_ANY,
-                    _("OpenCPN Server Message"), "", wxDefaultPosition,
+                    _("SuperCPN Server Message"), "", wxDefaultPosition,
                     wxDefaultSize, SYMBOL_PCD_STYLE);
 
   static const char* const msg =
@@ -234,7 +234,7 @@ void SendToPeerDlg::CreateControls(const wxString&) {
   //      Create the ScrollBox list of available com ports in a labeled static
   //      box
   wxStaticBox* comm_box =
-      new wxStaticBox(this, wxID_ANY, _("Detected OpenCPN peer instances"));
+      new wxStaticBox(this, wxID_ANY, _("Detected SuperCPN peer instances"));
 
   wxStaticBoxSizer* comm_box_sizer = new wxStaticBoxSizer(comm_box, wxVERTICAL);
   itemBoxSizer2->Add(comm_box_sizer, 0, wxEXPAND | wxALL, 5);

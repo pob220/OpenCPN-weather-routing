@@ -49,7 +49,7 @@
 #define LTINPUT \
   1  //!< Format date/time using timezone configured in the operating system.
 #define LMTINPUT 2  //!< Format date/time using the remote location LMT time.
-/** Format date/time according to global OpenCPN settings. */
+/** Format date/time according to global SuperCPN settings. */
 #define GLOBAL_SETTINGS_INPUT 3
 
 #define ID_RCLK_MENU_COPY_TEXT 7013
@@ -820,7 +820,7 @@ void RoutePropDlgImpl::OnRoutePropMenuSelected(wxCommandEvent& event) {
           moveup ? _("Are you sure you want to move Up this waypoint?")
                  : _("Are you sure you want to move Down this waypoint?");
       int dlg_return =
-          OCPNMessageBox(this, mess, _("OpenCPN Move Waypoint"),
+          OCPNMessageBox(this, mess, _("SuperCPN Move Waypoint"),
                          (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
 
       if (dlg_return == wxID_YES) {
@@ -858,7 +858,7 @@ void RoutePropDlgImpl::OnRoutePropMenuSelected(wxCommandEvent& event) {
     case ID_RCLK_MENU_DELETE: {
       int dlg_return = OCPNMessageBox(
           this, _("Are you sure you want to remove this waypoint?"),
-          _("OpenCPN Remove Waypoint"),
+          _("SuperCPN Remove Waypoint"),
           (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
 
       if (dlg_return == wxID_YES) {

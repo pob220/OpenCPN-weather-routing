@@ -1,9 +1,9 @@
 [Desktop Entry]
 Version=1.0
-Name=OpenCPN
+Name=SuperCPN
 Comment=Open source chart plotter / navigator
-Exec=opencpn
-Icon=opencpn
+Exec=supercpn
+Icon=supercpn
 StartupNotify=true
 Terminal=false
 Type=Application

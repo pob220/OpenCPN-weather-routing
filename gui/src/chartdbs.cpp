@@ -2005,7 +2005,7 @@ int ChartDatabase::TraverseDirAndAddCharts(ChartDirInfo &dir_info,
     wxFileName fn_dir(dir_path, "stuff");
     unsigned int dir_path_count = fn_dir.GetDirCount();
 
-    if (pprog) pprog->SetTitle(_("OpenCPN Chart Scan...."));
+    if (pprog) pprog->SetTitle(_("SuperCPN Chart Scan...."));
 
     int nEntries = active_chartTable.size();
 
@@ -2046,7 +2046,7 @@ bool ChartDatabase::DetectDirChange(const wxString &dir_path,
                                     const wxString &prog_label,
                                     const wxString &magic, wxString &new_magic,
                                     wxGenericProgressDialog *pprog) {
-  if (pprog) pprog->SetTitle(_("OpenCPN Directory Scan...."));
+  if (pprog) pprog->SetTitle(_("SuperCPN Directory Scan...."));
 
   //    parse the magic number
   long long unsigned int nmagic;
@@ -2389,7 +2389,7 @@ int ChartDatabase::SearchDirAndAddCharts(wxString &dir_name_base,
   //    match of each potential addition and bthis_dir_in_dB is false.
   // bool bthis_dir_in_dB = IsChartDirUsed(dir_name);
 
-  if (pprog) pprog->SetTitle(_("OpenCPN Chart Add...."));
+  if (pprog) pprog->SetTitle(_("SuperCPN Chart Add...."));
 
   // build a hash table based on filename (without directory prefix) of
   // the chart to fast detect identical charts

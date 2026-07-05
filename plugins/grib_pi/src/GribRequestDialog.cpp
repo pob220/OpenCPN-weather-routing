@@ -25,10 +25,13 @@
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 
 #include "wx/wx.h"
+#include <cmath>
+#include <wx/filename.h>
 #include <wx/utils.h>
 #include <sstream>
 #include "email.h"
 #include "XyGribModelDef.h"
+#include "model/boat_profile_service.h"
 
 #include "pi_gl.h"
 
@@ -77,6 +80,7 @@ GribRequestSetting::GribRequestSetting(GRIBUICtrlBar &parent)
   InitRequestConfig();
   m_connected = false;
   m_downloading = false;
+  m_boatProfileListenerId = 0;
   m_bTransferSuccess = true;
   m_downloadType = GribDownloadType::NONE;
 
@@ -95,7 +99,7 @@ GribRequestSetting::GribRequestSetting(GRIBUICtrlBar &parent)
       fg +
       ""
       ">" +
-      _("<h1>OpenCPN ECMWF forecast</h1>"
+      _("<h1>SuperCPN ECMWF forecast</h1>"
         "<p>Free service based on ECMWF Open Data published under the terms of "
         "Creative Commons CC-4.0-BY license</p>"
         "<p>The IFS model GRIB files include information about surface "
@@ -117,7 +121,7 @@ GribRequestSetting::GribRequestSetting(GRIBUICtrlBar &parent)
         "provided free of charge and without accepting any liability "
         "whatsoever for its continuous availability, or for any loss or damage "
         "arising from its use. If you find the service useful, please "
-        "consider making a donation to the OpenCPN project.</p>"
+        "consider making a donation to the SuperCPN project.</p>"
         "<p>This service is based on data and products of the European Centre "
         "for Medium-Range Weather Forecasts (ECMWF).</p>"
         "<p>Source: www.ecmwf.int</p>"
@@ -147,9 +151,18 @@ GribRequestSetting::GribRequestSetting(GRIBUICtrlBar &parent)
   m_selectedAtmModelIndex = 0;
   m_selectedWaveModelIndex = 0;
   InitializeXygribDialog();
+  ApplyBoatProfileDefaults();
+  UpdateActiveBoatProfileUi();
+  m_boatProfileListenerId = BoatProfileService::Get().AddListener(
+      [this](const BoatProfile*) {
+        ApplyBoatProfileDefaults();
+        UpdateActiveBoatProfileUi();
+      });
 }
 
 GribRequestSetting::~GribRequestSetting() {
+  if (m_boatProfileListenerId)
+    BoatProfileService::Get().RemoveListener(m_boatProfileListenerId);
   if (m_downloading) {
     OCPN_cancelDownloadFileBackground(m_download_handle);
   }
@@ -210,8 +223,8 @@ void GribRequestSetting::InitRequestConfig() {
     pConf->Read(_T( "ZyGribCode" ), &l, "");
     m_pCode->ChangeValue(l);
     pConf->Read(_T( "SendMailMethod" ), &m_SendMethod, 0);
-    pConf->Read(_T( "MovingGribSpeed" ), &m, 0);
-    m_sMovingSpeed->SetValue(m);
+  pConf->Read(_T( "MovingGribSpeed" ), &m, 0);
+  m_sMovingSpeed->SetValue(m);
     pConf->Read(_T( "MovingGribCourse" ), &m, 0);
     m_sMovingCourse->SetValue(m);
     pConf->Read(_T( "ManualRequestZoneSizingMode" ), &m, 0);
@@ -317,6 +330,95 @@ void GribRequestSetting::InitRequestConfig() {
 
   m_AllowSend = true;
   m_MailImage->SetValue(WriteMail());
+}
+
+int GribRequestSetting::FindChoiceByNumericValue(wxChoice* choice,
+                                                 double value) const {
+  if (!choice || choice->GetCount() == 0) return wxNOT_FOUND;
+
+  int best = wxNOT_FOUND;
+  double best_delta = 1000000.0;
+  for (unsigned int i = 0; i < choice->GetCount(); ++i) {
+    double parsed = 0.0;
+    wxString text = choice->GetString(i);
+    text.Replace("h", "");
+    if (text.ToCDouble(&parsed)) {
+      const double delta = fabs(parsed - value);
+      if (delta < best_delta) {
+        best = i;
+        best_delta = delta;
+      }
+    }
+  }
+  return best;
+}
+
+int GribRequestSetting::FindIntervalChoice(int hours) const {
+  return FindChoiceByNumericValue(m_xygribPanel->m_interval_choice, hours);
+}
+
+void GribRequestSetting::ApplyBoatProfileDefaults() {
+  auto& service = BoatProfileService::Get();
+  service.EnsureActiveProfile(_("My Boat"));
+  const BoatProfile* profile = service.GetActiveProfile();
+  if (!profile) return;
+
+  if (profile->cruising_speed_kn > 0.0)
+    m_sMovingSpeed->SetValue(wxRound(profile->cruising_speed_kn));
+
+  if (m_xygribPanel) {
+    int selection = FindChoiceByNumericValue(
+        m_xygribPanel->m_resolution_choice, profile->current_grid_spacing_deg);
+    if (selection != wxNOT_FOUND)
+      m_xygribPanel->m_resolution_choice->SetSelection(selection);
+
+    const double days = wxMax(1.0, profile->current_duration_hours / 24.0);
+    selection = FindChoiceByNumericValue(m_xygribPanel->m_duration_choice, days);
+    if (selection != wxNOT_FOUND)
+      m_xygribPanel->m_duration_choice->SetSelection(selection);
+
+    selection = FindIntervalChoice(profile->current_step_hours);
+    if (selection != wxNOT_FOUND)
+      m_xygribPanel->m_interval_choice->SetSelection(selection);
+  }
+
+  wxString provider = profile->current_provider.Lower();
+  if (m_notebookGetGrib) {
+    if (provider.Contains("local")) {
+      m_notebookGetGrib->SetSelection(1);
+    } else if (provider.Contains("mail") || provider.Contains("saildocs") ||
+               provider.Contains("zygrib")) {
+      m_notebookGetGrib->SetSelection(2);
+    } else if (provider.Contains("xygrib")) {
+      m_notebookGetGrib->SetSelection(3);
+    }
+  }
+
+  if (!profile->data_directory.empty()) {
+    wxFileName dir(profile->data_directory, "");
+    if (dir.DirExists()) m_parent.m_grib_dir = profile->data_directory;
+  }
+
+  MemorizeXyGribConfiguration();
+  UpdateGribSizeEstimate();
+}
+
+void GribRequestSetting::UpdateActiveBoatProfileUi() {
+  if (!m_boatProfileText) return;
+
+  const BoatProfile* profile = BoatProfileService::Get().GetActiveProfile();
+  if (profile) {
+    m_boatProfileText->SetLabel(wxString::Format(
+        _("Boat Profile: %s  |  %.1f kn cruise, %d h, %d h step"),
+        profile->name, profile->cruising_speed_kn,
+        profile->current_duration_hours, profile->current_step_hours));
+  } else {
+    m_boatProfileText->SetLabel(
+        _("Boat Profile: Safe fallback - create/select a profile for tuned "
+          "current GRIB defaults"));
+  }
+  m_boatProfileText->Wrap(GetClientSize().x - 20);
+  Layout();
 }
 
 wxWindow *GetGRIBCanvas();
@@ -2043,14 +2145,23 @@ wxString GribRequestSetting::BuildGribFileName() {
   wxString selStr = m_xygribPanel->m_resolution_choice->GetStringSelection();
   selStr.Replace(".", "P");
 
+  wxString profileName = "NoBoatProfile";
+  if (const BoatProfile* profile = BoatProfileService::Get().GetActiveProfile())
+    profileName = profile->name;
+  profileName.Replace(" ", "_");
+  profileName.Replace("/", "_");
+  profileName.Replace("\\", "_");
+
   wxString fileName;
   if (m_selectedWaveModelIndex < 0) {
     fileName = wxString::Format(
-        "XyGrib_%s_%s_%s.grb2", wxDateTime::Now().Format("%F-%H-%M"),
+        "XyGrib_%s_%s_%s_%s.grb2", wxDateTime::Now().Format("%F-%H-%M"),
+        profileName,
         m_xygribPanel->m_atmmodel_choice->GetStringSelection(), selStr);
   } else {
     fileName = wxString::Format(
-        "XyGrib_%s_%s_%s_%s.grb2", wxDateTime::Now().Format("%F-%H-%M"),
+        "XyGrib_%s_%s_%s_%s_%s.grb2", wxDateTime::Now().Format("%F-%H-%M"),
+        profileName,
         m_xygribPanel->m_atmmodel_choice->GetStringSelection(), selStr,
         m_xygribPanel->m_wavemodel_choice->GetStringSelection());
   }
@@ -2781,26 +2892,38 @@ double GribRequestSetting::GetMinLat() const {
   if (m_rbManualSelect && m_rbManualSelect->GetValue()) {
     return m_spMinLat->GetValue();
   }
-  return m_VpFocus->lat_min;
+  double margin = 0.0;
+  if (const BoatProfile* profile = BoatProfileService::Get().GetActiveProfile())
+    margin = profile->cruising_speed_kn * profile->current_duration_hours / 60.0;
+  return wxMax(-90.0, m_VpFocus->lat_min - margin);
 }
 
 double GribRequestSetting::GetMaxLat() const {
   if (m_rbManualSelect && m_rbManualSelect->GetValue()) {
     return m_spMaxLat->GetValue();
   }
-  return m_VpFocus->lat_max;
+  double margin = 0.0;
+  if (const BoatProfile* profile = BoatProfileService::Get().GetActiveProfile())
+    margin = profile->cruising_speed_kn * profile->current_duration_hours / 60.0;
+  return wxMin(90.0, m_VpFocus->lat_max + margin);
 }
 
 double GribRequestSetting::GetMinLon() const {
   if (m_rbManualSelect && m_rbManualSelect->GetValue()) {
     return m_spMinLon->GetValue();
   }
-  return m_VpFocus->lon_min;
+  double margin = 0.0;
+  if (const BoatProfile* profile = BoatProfileService::Get().GetActiveProfile())
+    margin = profile->cruising_speed_kn * profile->current_duration_hours / 60.0;
+  return wxMax(-180.0, m_VpFocus->lon_min - margin);
 }
 
 double GribRequestSetting::GetMaxLon() const {
   if (m_rbManualSelect && m_rbManualSelect->GetValue()) {
     return m_spMaxLon->GetValue();
   }
-  return m_VpFocus->lon_max;
+  double margin = 0.0;
+  if (const BoatProfile* profile = BoatProfileService::Get().GetActiveProfile())
+    margin = profile->cruising_speed_kn * profile->current_duration_hours / 60.0;
+  return wxMin(180.0, m_VpFocus->lon_max + margin);
 }

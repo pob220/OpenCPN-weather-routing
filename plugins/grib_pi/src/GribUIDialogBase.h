@@ -463,6 +463,7 @@ private:
   void createEmailPanel();
 
 protected:
+  wxStaticText* m_boatProfileText;
   wxNotebook* m_notebookGetGrib;
   wxPanel* m_panelWorld;
   wxHtmlWindow* m_htmlWinWorld;

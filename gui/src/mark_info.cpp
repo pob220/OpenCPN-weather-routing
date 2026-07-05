@@ -598,7 +598,7 @@ void MarkInfoDlg::Create() {
       new wxTextCtrl(sbSizerExtProperties->GetStaticBox(), wxID_ANY, "",
                      wxDefaultPosition, wxDefaultSize, 0);
   m_textArrivalRadius->SetToolTip(
-      _("Distance from the waypoint at which OpenCPN will consider the "
+      _("Distance from the waypoint at which SuperCPN will consider the "
         "waypoint reached. Used for automatic waypoint advancement during "
         "active navigation."));
   gbSizerInnerExtProperties1->Add(m_textArrivalRadius, 0, wxALL | wxEXPAND, 5);
@@ -1883,6 +1883,6 @@ void MarkInfoDlg::ShowTidesBtnClicked(wxCommandEvent& event) {
     wxString msg(_("Tide Station not found"));
     msg += ":\n";
     msg += m_comboBoxTideStation->GetStringSelection();
-    OCPNMessageBox(NULL, msg, _("OpenCPN Info"), wxOK | wxCENTER, 10);
+    OCPNMessageBox(NULL, msg, _("SuperCPN Info"), wxOK | wxCENTER, 10);
   }
 }

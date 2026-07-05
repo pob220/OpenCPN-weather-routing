@@ -68,16 +68,16 @@ static const wxString AboutText =
 
 static const wxString OpenCPNInfo =
     "<br><br>"
-    "OpenCPN is a Free Software project, built by sailors. "
+    "SuperCPN is a Free Software project, built by sailors. "
     "It is freely available to download and distribute "
     "without charge at opencpn.org.<br><br>"
-    "If you use OpenCPN, please consider contributing "
+    "If you use SuperCPN, please consider contributing "
     "or donating funds to the project.<br><br>"
     "For more information, visit http://opencpn.org<br><br>";
 
 static const wxString OpenCPNInfoAlt =
     "<br><br>"
-    "OpenCPN is a Free Software project, built by sailors."
+    "SuperCPN is a Free Software project, built by sailors."
     "The complete source code and many other resources "
     "are freely available for your download and use, "
     "subject to applicable License agreements."
@@ -196,7 +196,7 @@ void About::Populate() {
   wxString msg;
   msg.Printf(" [%d]", androidGetVersionCode());
   wxString OpenCPNVersionAndroid =
-      "OpenCPN for Android Version " + androidGetVersionName() + msg;
+      "SuperCPN for Android Version " + androidGetVersionName() + msg;
 
   aboutText.Append(AboutText + OpenCPNVersionAndroid + OpenCPNInfoAlt);
 #else

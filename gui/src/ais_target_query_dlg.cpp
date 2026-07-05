@@ -171,8 +171,8 @@ void AISTargetQueryDialog::OnIdTrkCreateClick(wxCommandEvent &event) {
                 wxTheApp->GetTopWindow(),
                 _("The recently captured track of this target has been "
                   "recorded.\nDo you want to continue recording until the end "
-                  "of the current OpenCPN session?"),
-                _("OpenCPN Info"), wxYES_NO | wxCENTER, 60)) {
+                  "of the current SuperCPN session?"),
+                _("SuperCPN Info"), wxYES_NO | wxCENTER, 60)) {
           td->b_PersistTrack = true;
           g_pAIS->m_persistent_tracks[td->MMSI] = t;
           td->b_show_track_old = td->b_show_track;

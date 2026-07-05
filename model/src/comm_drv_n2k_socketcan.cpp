@@ -270,7 +270,7 @@ bool CommDriverN2KSocketCanImpl::SendProductInfo() {
   payload.push_back(0xEC);  // Product Code, 1772
   payload.push_back(0x06);
 
-  std::string ModelID("OpenCPN");  // Model ID
+  std::string ModelID("SuperCPN");  // Model ID
   AddStr(payload, ModelID, 32);
 
   std::string ModelSWCode(PACKAGE_VERSION);  // SwCode

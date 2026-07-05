@@ -1453,7 +1453,7 @@ void RouteManagerDialog::OnRteDeleteClick(wxCommandEvent &event) {
 void RouteManagerDialog::OnRteDeleteAllClick(wxCommandEvent &event) {
   int dialog_ret =
       OCPNMessageBox(this, _("Are you sure you want to delete <ALL> routes?"),
-                     wxString(_("OpenCPN Alert")), wxYES_NO);
+                     wxString(_("SuperCPN Alert")), wxYES_NO);
 
   if (dialog_ret == wxID_YES) {
     if (g_pRouteMan->GetpActiveRoute()) g_pRouteMan->DeactivateRoute();
@@ -1621,7 +1621,7 @@ void RouteManagerDialog::OnRteSendToPeerClick(wxCommandEvent &event) {
     if (MdnsCache::GetInstance().GetCache().empty()) dlg.SetScanOnCreate(true);
 
     dlg.SetScanTime(5);  // seconds
-    dlg.Create(NULL, -1, _("Send Route(s) to OpenCPN Peer") + "...", "");
+    dlg.Create(NULL, -1, _("Send Route(s) to SuperCPN Peer") + "...", "");
     dlg.ShowModal();
   }
 }
@@ -1653,7 +1653,7 @@ void RouteManagerDialog::OnWptSendToPeerClick(wxCommandEvent &event) {
     if (MdnsCache::GetInstance().GetCache().empty()) dlg.SetScanOnCreate(true);
 
     dlg.SetScanTime(5);  // seconds
-    dlg.Create(NULL, -1, _("Send Waypoint(s) to OpenCPN Peer") + "...", "");
+    dlg.Create(NULL, -1, _("Send Waypoint(s) to SuperCPN Peer") + "...", "");
     dlg.ShowModal();
   }
 }
@@ -1685,7 +1685,7 @@ void RouteManagerDialog::OnTrkSendToPeerClick(wxCommandEvent &event) {
     if (MdnsCache::GetInstance().GetCache().empty()) dlg.SetScanOnCreate(true);
 
     dlg.SetScanTime(5);  // seconds
-    dlg.Create(NULL, -1, _("Send Track(s) to OpenCPN Peer") + "...", "");
+    dlg.Create(NULL, -1, _("Send Track(s) to SuperCPN Peer") + "...", "");
     dlg.ShowModal();
   }
 }
@@ -1926,7 +1926,7 @@ void RouteManagerDialog::OnTrkMenuSelected(wxCommandEvent &event) {
       wxString msg = wxString::Format(
           _("The amount of data used by the track\n was reduced by %d%%."),
           reduction);
-      OCPNMessageBox(this, msg, _("OpenCPN info"), wxICON_INFORMATION | wxOK);
+      OCPNMessageBox(this, msg, _("SuperCPN info"), wxICON_INFORMATION | wxOK);
 
       UpdateTrkListCtrl();
       UpdateRouteListCtrl();
@@ -2241,7 +2241,7 @@ void RouteManagerDialog::OnTrkDeleteClick(wxCommandEvent &event) {
 
   int answer = OCPNMessageBox(
       this, _("Are you sure you want to delete the selected object(s)"),
-      wxString(_("OpenCPN Alert")), wxYES_NO);
+      wxString(_("SuperCPN Alert")), wxYES_NO);
   if (answer != wxID_YES) return;
 
   bool busy = false;
@@ -2308,7 +2308,7 @@ void RouteManagerDialog::TrackToRoute(Track *track) {
   if (!track) return;
   if (track->m_bIsInLayer) return;
 
-  wxGenericProgressDialog pprog(_("OpenCPN Converting Track to Route...."),
+  wxGenericProgressDialog pprog(_("SuperCPN Converting Track to Route...."),
                                 _("Processing Waypoints..."), 101, NULL,
                                 wxPD_AUTO_HIDE | wxPD_SMOOTH |
                                     wxPD_ELAPSED_TIME | wxPD_ESTIMATED_TIME |
@@ -2343,7 +2343,7 @@ void RouteManagerDialog::OnTrkRouteFromTrackClick(wxCommandEvent &event) {
 void RouteManagerDialog::OnTrkDeleteAllClick(wxCommandEvent &event) {
   int dialog_ret =
       OCPNMessageBox(this, _("Are you sure you want to delete <ALL> tracks?"),
-                     wxString(_("OpenCPN Alert")), wxYES_NO);
+                     wxString(_("SuperCPN Alert")), wxYES_NO);
 
   if (dialog_ret == wxID_YES) {
     RoutemanGui(*g_pRouteMan).DeleteAllTracks();
@@ -2690,7 +2690,7 @@ void RouteManagerDialog::OnWptDeleteClick(wxCommandEvent &event) {
 
   int answer = OCPNMessageBox(
       this, _("Are you sure you want to delete the selected object(s)"),
-      wxString(_("OpenCPN Alert")), wxYES_NO);
+      wxString(_("SuperCPN Alert")), wxYES_NO);
   if (answer != wxID_YES) return;
 
   bool busy = false;
@@ -2721,7 +2721,7 @@ void RouteManagerDialog::OnWptDeleteClick(wxCommandEvent &event) {
               OCPNMessageBox(this,
                              _("The waypoint you want to delete is used in a "
                                "route, do you really want to delete it?"),
-                             _("OpenCPN Alert"), wxYES_NO)) {
+                             _("SuperCPN Alert"), wxYES_NO)) {
             NavObj_dB::GetInstance().DeleteRoutePoint(wp);
             pWayPointMan->DestroyWaypoint(wp);
           }
@@ -2859,7 +2859,7 @@ void RouteManagerDialog::OnWptDeleteAllClick(wxCommandEvent &event) {
     type = 2;
   }
   int answer =
-      OCPNMessageBox(this, prompt, wxString(_("OpenCPN Alert")), buttons);
+      OCPNMessageBox(this, prompt, wxString(_("SuperCPN Alert")), buttons);
   if (answer == wxID_YES) pWayPointMan->DeleteAllWaypoints(true);
   if (answer == wxID_NO && type == 2)
     pWayPointMan->DeleteAllWaypoints(false);  // only delete unused waypoints
@@ -3018,12 +3018,12 @@ void RouteManagerDialog::OnLayDeleteClick(wxCommandEvent &event) {
   if (wxFileExists(destf)) {
     prompt.Append("\n");
     prompt.Append(
-        _("The file will also be deleted from OpenCPN's layer directory."));
+        _("The file will also be deleted from SuperCPN's layer directory."));
     prompt.Append("\n (" + destf + ")");
     ispers = true;
   }
   int answer =
-      OCPNMessageBox(this, prompt, wxString(_("OpenCPN Alert")), wxYES_NO);
+      OCPNMessageBox(this, prompt, wxString(_("SuperCPN Alert")), wxYES_NO);
   if (answer == wxID_NO) return;
 
   // Delete a persistent layer file if present
@@ -3326,7 +3326,7 @@ void RouteManagerDialog::OnBackupClick(wxCommandEvent &event) {
     OCPNMessageBox(NULL, _("Backup successful"), _("Backup result"),
                    wxICON_INFORMATION | wxOK);
   } else if (result == wxID_NO) {
-    OCPNMessageBox(NULL, _("Backup Failed\nCheck the OpenCPN Logs"),
+    OCPNMessageBox(NULL, _("Backup Failed\nCheck the SuperCPN Logs"),
                    _("Backup result"), wxICON_INFORMATION | wxOK);
   }
   // If the backup was cancelled the result is wxID_ABORT

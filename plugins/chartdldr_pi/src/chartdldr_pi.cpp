@@ -284,7 +284,7 @@ wxBitmap *chartdldr_pi::GetPlugInBitmap() { return _img_chartdldr_pi; }
 wxString chartdldr_pi::GetCommonName() { return _("ChartDownloader"); }
 
 wxString chartdldr_pi::GetShortDescription() {
-  return _("Chart Downloader PlugIn for OpenCPN");
+  return _("Chart Downloader PlugIn for SuperCPN");
 }
 
 wxString chartdldr_pi::GetLongDescription() {

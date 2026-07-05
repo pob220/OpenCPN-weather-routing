@@ -291,7 +291,7 @@ NotificationsList::NotificationsList(wxWindow* parent) : wxDialog() {
   mstyle |= wxSTAY_ON_TOP;
 #endif
 
-  wxDialog::Create(parent, wxID_ANY, _("OpenCPN Notifications"),
+  wxDialog::Create(parent, wxID_ANY, _("SuperCPN Notifications"),
                    wxDefaultPosition, wxDefaultSize, mstyle);
 
   wxBoxSizer* topsizer = new wxBoxSizer(wxVERTICAL);

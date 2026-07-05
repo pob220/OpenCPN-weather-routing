@@ -44,7 +44,7 @@ public:
   virtual void Init();
 
   virtual bool Create(wxWindow* parent, wxWindowID id = wxID_ANY,
-                      const wxString& caption = _("OpenCPN Alert"),
+                      const wxString& caption = _("SuperCPN Alert"),
                       const wxPoint& pos = wxDefaultPosition,
                       const wxSize& size = wxDefaultSize,
                       long style = wxCAPTION | wxRESIZE_BORDER | wxSYSTEM_MENU);
@@ -69,7 +69,7 @@ public:
   bool Create(int target_mmsi, wxWindow* parent, AisDecoder* pdecoder,
               bool b_jumpto, bool b_createWP, bool b_ack,
               wxWindowID id = wxID_ANY,
-              const wxString& caption = _("OpenCPN AIS Alert"),
+              const wxString& caption = _("SuperCPN AIS Alert"),
               const wxPoint& pos = wxDefaultPosition,
               const wxSize& size = wxDefaultSize,
               long style = wxCAPTION | wxRESIZE_BORDER | wxSYSTEM_MENU);

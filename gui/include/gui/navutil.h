@@ -58,7 +58,7 @@
 #define UTCINPUT 0  //!< Date/time in UTC.
 #define LTINPUT 1   //!< Date/time using PC local timezone.
 #define LMTINPUT 2  //!< Date/time using the remote location LMT time.
-#define GLOBAL_SETTINGS_INPUT 3  //!< Date/time as of global OpenCPN settings.
+#define GLOBAL_SETTINGS_INPUT 3  //!< Date/time as of global SuperCPN settings.
 
 constexpr int kMaxCogsogFilterSeconds = 60;
 constexpr int kMaxCogAverageSeconds = 60;

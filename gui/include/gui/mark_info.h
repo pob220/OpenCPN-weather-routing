@@ -208,7 +208,7 @@ private:
    * This pointer references the actual waypoint object being modified, not a
    * copy. Changes made in the dialog directly affect this object when applied.
    *
-   * In OpenCPN, a waypoint can:
+   * In SuperCPN, a waypoint can:
    * - Exist independently (not part of any route)
    * - Be part of a single route
    * - Be shared between multiple routes

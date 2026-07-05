@@ -27,12 +27,14 @@
 #include <vector>
 
 #include <wx/bitmap.h>
+#include <wx/choice.h>
 #include <wx/dynarray.h>
 #include <wx/string.h>
 #include <wx/tbarbase.h>
 #include <wx/menuitem.h>
 
 #include "abstract_chart_canv.h"
+#include "model/boat_profile_service.h"
 #include "ocpndc.h"
 #include "tooltip.h"
 #include "styles.h"
@@ -306,6 +308,8 @@ public:
   void KillTooltip();
   void EnableTooltips();
   void DisableTooltips();
+  int GetScrollOffset() const { return m_scrollOffset; }
+  void SetViewportHeight(int height);
 
 protected:
   // common part of all ctors
@@ -336,6 +340,14 @@ protected:
   void DrawTool(wxToolBarToolBase *tool);
   virtual void DrawTool(wxDC &dc, wxToolBarToolBase *tool);
   void CreateToolBitmap(wxToolBarToolBase *toolBase);
+  wxString GetDisplayLabel(ocpnToolBarTool *tool) const;
+  wxString GetPluginDisplayLabel(ocpnToolBarTool *tool) const;
+  wxCoord GetSidebarWidth(wxCoord toolWidth) const;
+  wxCoord GetSidebarLabelGap() const;
+  wxCoord GetSidebarLabelPadding() const;
+  wxColour GetSidebarLabelColour() const;
+  int GetMaxScrollOffset() const;
+  bool ScrollBy(int delta);
 
   bool m_dirty;
   int m_currentRowsOrColumns;
@@ -371,6 +383,9 @@ protected:
   bool m_leftDown;
   int m_nShowTools;
   bool m_tbenableRolloverBitmaps;
+  int m_scrollOffset;
+  int m_viewportHeight;
+  int m_contentHeight;
 
   wxBitmap m_bitmap;
 
@@ -496,6 +511,9 @@ public:
   bool m_toolbar_scale_tools_shown;
   void SetBackGroundColorString(wxString colorRef);
   void SetULDockPosition(wxPoint position);
+  void RefreshBoatProfileChoice();
+  void PositionBoatProfileChoice();
+  void OnBoatProfileChoice(wxCommandEvent &event);
 
   ArrayOfToolbarItemContainer m_Items;
 
@@ -509,10 +527,14 @@ protected:
 
 private:
   void DoFade(int value);
+  int GetFloatingInset() const;
 
   bool m_bsubmerged;
 
   wxWindow *m_pparent;
+  wxChoice *m_profileChoice;
+  std::vector<wxString> m_profileChoiceIds;
+  int m_profileListenerId;
   wxBoxSizer *m_topSizer;
   ToolbarDlgCallbacks m_callbacks;
 

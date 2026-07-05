@@ -34,6 +34,8 @@ set(
   ${MODEL_HDR_DIR}/atomic_queue.h
   ${MODEL_HDR_DIR}/autopilot_output.h
   ${MODEL_HDR_DIR}/base_platform.h
+  ${MODEL_HDR_DIR}/boat_profile.h
+  ${MODEL_HDR_DIR}/boat_profile_service.h
   ${MODEL_HDR_DIR}/catalog_handler.h
   ${MODEL_HDR_DIR}/catalog_parser.h
   ${MODEL_HDR_DIR}/certificates.h
@@ -149,6 +151,8 @@ set(SRC
   ${MODEL_SRC_DIR}/ais_target_data.cpp
   ${MODEL_SRC_DIR}/autopilot_output.cpp
   ${MODEL_SRC_DIR}/base_platform.cpp
+  ${MODEL_SRC_DIR}/boat_profile.cpp
+  ${MODEL_SRC_DIR}/boat_profile_service.cpp
   ${MODEL_SRC_DIR}/catalog_handler.cpp
   ${MODEL_SRC_DIR}/catalog_parser.cpp
   ${MODEL_SRC_DIR}/certificates.cpp

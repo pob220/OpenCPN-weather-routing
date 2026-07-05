@@ -93,7 +93,7 @@ static void InitRouteman() {
 }
 
 static const char* USAGE = R"""(
-Usage: opencpn-cli [options] <command>
+Usage: supercpn-cmd [options] <command>
 
 Options:
 
@@ -156,7 +156,7 @@ class CliApp : public wxAppConsole {
 public:
   CliApp() : wxAppConsole() {
     CheckBuildOptions(WX_BUILD_OPTIONS_SIGNATURE, "program");
-    SetAppName("opencpn");
+    SetAppName(OCPN_APP_PACKAGE_NAME);
   }
 
   void OnInitCmdLine(wxCmdLineParser& parser) override {

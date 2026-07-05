@@ -40,7 +40,7 @@
 
 #define ID_DIALOG 10001
 
-#define SYMBOL_ABOUT_TITLE _("About OpenCPN")
+#define SYMBOL_ABOUT_TITLE _("About SuperCPN")
 
 #define ID_DONATE 10010
 #define ID_COPYINI 10011

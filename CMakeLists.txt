@@ -61,16 +61,20 @@ if ("${OCPN_TARGET_TUPLE}" MATCHES "Android")
   endif ()
 endif ()
 
+set(OCPN_DISPLAY_NAME "SuperCPN")
+set(OCPN_DISPLAY_NAME_LC "supercpn")
+
 if (APPLE)
   set(PACKAGE_NAME OpenCPN)
   string(REPLACE ";" "," CMAKE_OSX_ARCHITECTURES_COMMA_SEP "${CMAKE_OSX_ARCHITECTURES}")
 elseif (QT_ANDROID)
   set(PACKAGE_NAME gorp)
 else ()
-  set(PACKAGE_NAME opencpn)
+  set(PACKAGE_NAME ${OCPN_DISPLAY_NAME_LC})
 endif ()
+set(OCPN_APP_PACKAGE_NAME ${PACKAGE_NAME})
 
-project(OpenCPN)
+project(SuperCPN)
 
 if (NOT DEFINED OCPN_VERBOSE OR OCPN_VERBOSE)
   set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -371,6 +375,7 @@ if (NOT WIN32 AND NOT APPLE)
     endif ()
   endif ()
   add_definitions(" -DPREFIX=\\\"${CMAKE_INSTALL_PREFIX}\\\"")
+  add_definitions(" -DOCPN_APP_PACKAGE_NAME=\\\"${OCPN_APP_PACKAGE_NAME}\\\"")
   # profiling with gprof ADD_COMPILE_OPTIONS( -pg )
   # SET(CMAKE_EXE_LINKER_FLAGS -pg)
   # profiling with gcov ADD_COMPILE_OPTIONS( "-fprofile-arcs -ftest- # coverage" )
@@ -1932,7 +1937,7 @@ if (APPLE)
   # time
   set(MACOSX_BUNDLE_ICON_FILE opencpn.icns)
   set(MACOSX_BUNDLE_SHORT_VERSION_STRING "${PACKAGE_VERSION}")
-  set(MACOSX_BUNDLE_BUNDLE_NAME "OpenCPN")
+  set(MACOSX_BUNDLE_BUNDLE_NAME "${OCPN_DISPLAY_NAME}")
   set(MACOSX_BUNDLE_GUI_IDENTIFIER "org.opencpn")
 
   if (OCPN_BUNDLE_DOCS)
@@ -2118,24 +2123,36 @@ if (NOT APPLE)
   if (UNIX)
     install(FILES data/opencpn.png
             DESTINATION ${PREFIX_DATA}/icons/hicolor/48x48/apps
+            RENAME ${PACKAGE_NAME}.png
     )
     install(
       FILES resources/bitmaps/opencpn-64.png
       DESTINATION ${PREFIX_DATA}/icons/hicolor/64x64/apps
-      RENAME opencpn.png
+      RENAME ${PACKAGE_NAME}.png
     )
     install(FILES resources/bitmaps/other_svg_src/opencpn.svg
             DESTINATION ${PREFIX_DATA}/icons/hicolor/scalable/apps
+            RENAME ${PACKAGE_NAME}.svg
     )
     install(FILES resources/opencpn.desktop
             DESTINATION ${PREFIX_DATA}/applications
+            RENAME ${PACKAGE_NAME}.desktop
     )
     install(
       FILES ${CMAKE_BINARY_DIR}/opencpn.appdata.xml
       DESTINATION ${PREFIX_DATA}/metainfo
-      RENAME opencpn.appdata.xml
+      RENAME ${PACKAGE_NAME}.appdata.xml
     )
-    install(FILES opencpn.1 opencpn-cmd.1 DESTINATION ${PREFIX_DATA}/man/man1)
+    install(
+      FILES opencpn.1
+      DESTINATION ${PREFIX_DATA}/man/man1
+      RENAME ${PACKAGE_NAME}.1
+    )
+    install(
+      FILES opencpn-cmd.1
+      DESTINATION ${PREFIX_DATA}/man/man1
+      RENAME ${PACKAGE_NAME}-cmd.1
+    )
   endif ()
 
   install(CODE "
@@ -2486,9 +2503,9 @@ endif ()
 #
 # include (InstallRequiredSystemLibraries)
 set(CPACK_BINDIR "${CMAKE_BINARY_DIR}")
-set(CPACK_PACKAGE_NAME "OpenCPN")
+set(CPACK_PACKAGE_NAME "${OCPN_DISPLAY_NAME}")
 set(CPACK_PACKAGE_VENDOR "opencpn.org")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OpenCPN ${PACKAGE_VERSION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${OCPN_DISPLAY_NAME} ${PACKAGE_VERSION}")
 set(CPACK_PACKAGE_VERSION ${PACKAGE_VERSION})
 set(CPACK_PACKAGE_VERSION_MAJOR ${VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${VERSION_MINOR})
@@ -2496,7 +2513,7 @@ set(CPACK_PACKAGE_VERSION_PATCH ${VERSION_PATCH}${VERSION_TAIL})
 set(CPACK_INSTALL_CMAKE_PROJECTS
     "${CMAKE_CURRENT_BINARY_DIR};${PACKAGE_NAME};ALL;/"
 )
-set(CPACK_PACKAGE_EXECUTABLES ${PACKAGE_NAME} "OpenCPN")
+set(CPACK_PACKAGE_EXECUTABLES ${PACKAGE_NAME} "${OCPN_DISPLAY_NAME}")
 
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/README")
   set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README")
@@ -2607,7 +2624,7 @@ if (WIN32)
   # sure there is at least one set of four (4) backlasshes.
 
   set(CPACK_NSIS_INSTALLED_ICON_NAME "opencpn.exe")
-  set(CPACK_NSIS_PACKAGE_NAME_LC "opencpn")
+  set(CPACK_NSIS_PACKAGE_NAME_LC "${OCPN_DISPLAY_NAME_LC}")
   set(CPACK_NSIS_DIR "${CMAKE_SOURCE_DIR}/buildwin/NSIS_Unicode") # Gunther
   set(CPACK_BUILDWIN_DIR "${CMAKE_SOURCE_DIR}/buildwin") # Gunther
 
@@ -2620,7 +2637,7 @@ if (WIN32)
       "${CMAKE_CURRENT_SOURCE_DIR}/data/license.txt"
   )
 else ()
-  set(CPACK_PACKAGE_INSTALL_DIRECTORY ${PACKAGE_NAME})
+  set(CPACK_PACKAGE_INSTALL_DIRECTORY ${OCPN_DISPLAY_NAME})
   set(CPACK_STRIP_FILES "bin/opencpn")
   set(CPACK_SOURCE_STRIP_FILES "")
   set(CPACK_PACKAGE_FILE_NAME
@@ -2715,7 +2732,7 @@ if (APPLE)
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${PACKAGE_NAME}_${PACKAGE_VERSION}.dmg
     COMMAND
-      create-dmg --volname "OpenCPN Installer"
+      create-dmg --volname "${OCPN_DISPLAY_NAME} Installer"
       --background ${CMAKE_SOURCE_DIR}/buildosx/background.png --window-pos 200
       120 --window-size 500 300 --icon-size 80 --icon OpenCPN.app 120 150
       --hide-extension OpenCPN.app --app-drop-link 390 145 --no-internet-enable

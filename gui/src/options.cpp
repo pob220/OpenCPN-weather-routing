@@ -834,7 +834,7 @@ void MMSIEditDialog::CreateControls() {
 
   m_cbTrackPersist = new wxCheckBox(this, wxID_ANY, _("Persistent"));
   m_cbTrackPersist->SetToolTip(
-      _("Save this vessel's track between OpenCPN sessions. Useful for vessels "
+      _("Save this vessel's track between SuperCPN sessions. Useful for vessels "
         "you want to monitor continuously over time."));
   gridSizer->Add(m_cbTrackPersist, 0, wxALL, 5);
 
@@ -852,7 +852,7 @@ void MMSIEditDialog::CreateControls() {
   m_MOBButton = new wxCheckBox(this, wxID_ANY,
                                _("Handle this MMSI as SART/PLB(AIS) MOB."));
   m_MOBButton->SetToolTip(
-      _("When checked, OpenCPN will display a special icon for this device, "
+      _("When checked, SuperCPN will display a special icon for this device, "
         "sound a distinctive alarm, and automatically create a temporary MOB "
         "route from your vessel to this device in emergency. For crew safety "
         "devices, you can assign the crew member's name using the Name "
@@ -977,7 +977,7 @@ void MMSIEditDialog::OnMMSIEditOKClick(wxCommandEvent& event) {
           this,
           _("An MMSI Id is generally a number of nine digits.\nPlease check "
             "your entries and cancel if necessary."),
-          _("OpenCPN Info"), wxOK | wxCANCEL);
+          _("SuperCPN Info"), wxOK | wxCANCEL);
 
       dlg->ShowWindowModalThenDo([this, dlg](int retcode) {
         if (retcode == wxID_OK) {
@@ -1748,7 +1748,7 @@ static int GetDistanceFormatEnum(int index) {
 
 static const wxString BAD_ACCESS_MSG = _(
     "The device selected is not accessible; opencpn will likely not be able\n"
-    "to use this device as-is. You might want to exit OpenCPN, reboot and\n"
+    "to use this device as-is. You might want to exit SuperCPN, reboot and\n"
     "retry after creating a file called /etc/udev/rules.d/70-opencpn.rules\n"
     "with the following contents:\n\n"
     "            KERNEL==\"ttyUSB*\", MODE=\"0666\"\n"
@@ -1760,7 +1760,7 @@ static const wxString BAD_ACCESS_MSG = _(
 
 static const wxString BAD_ACCESS_MSG = _(R"(
 The device selected is not accessible; opencpn will likely not be able
-to use this device as-is. You might want to exit OpenCPN, reboot and
+to use this device as-is. You might want to exit SuperCPN, reboot and
 retry after creating a file called /etc/udev/rules.d/70-opencpn.rules
 with the following contents:
 
@@ -2850,7 +2850,7 @@ void options::OnApplyConfig(wxCommandEvent& event) {
   bool bApplyStat = ConfigMgr::Get().ApplyConfigGUID(m_selectedConfigPanelGUID);
   if (bApplyStat) {
     //        OCPNMessageBox(this, _("Configuration successfully applied."),
-    //        _("OpenCPN Info"), wxOK);
+    //        _("SuperCPN Info"), wxOK);
     g_lastAppliedTemplateGUID = m_selectedConfigPanelGUID;
     wxString activeTitle =
         ConfigMgr::Get().GetTemplateTitle(g_lastAppliedTemplateGUID);
@@ -2860,7 +2860,7 @@ void options::OnApplyConfig(wxCommandEvent& event) {
     m_templateStatusBoxSizer->Layout();
   } else
     OCPNMessageBox(this, _("Problem applying selected configuration."),
-                   _("OpenCPN Info"), wxOK);
+                   _("SuperCPN Info"), wxOK);
 
   //  Clear all selections
   if (m_scrollWinConfigList) {
@@ -7170,7 +7170,7 @@ void options::ApplyChanges(wxCommandEvent& event) {
       msg += _("\n - your minimum ship icon size must be between 1 and 100 mm");
     if (!msg.IsEmpty()) {
       msg.Prepend(_("The settings for own ship real size are not correct:"));
-      OCPNMessageBox(this, msg, _("OpenCPN info"), wxICON_ERROR | wxOK);
+      OCPNMessageBox(this, msg, _("SuperCPN info"), wxICON_ERROR | wxOK);
       ::wxEndBusyCursor();
       event.SetInt(wxID_STOP);
       return;
@@ -7950,7 +7950,7 @@ void options::DoDBSUpdate(bool force_full) {
   m_CancelButton->Disable();
   m_ApplyButton->Disable();
 
-  wxString longmsg = _("OpenCPN Chart Update");
+  wxString longmsg = _("SuperCPN Chart Update");
   longmsg +=
       ".................................................................."
       "........";
@@ -7961,7 +7961,7 @@ void options::DoDBSUpdate(bool force_full) {
   m_pCBDSprog->SetFont(*qFont);
 
   //
-  m_pCBDSprog->Create(_("OpenCPN Chart Update"), longmsg, 100, nullptr,
+  m_pCBDSprog->Create(_("SuperCPN Chart Update"), longmsg, 100, nullptr,
                       wxPD_SMOOTH);
 
   DimeControl(m_pCBDSprog);
@@ -8222,7 +8222,7 @@ void options::OnButtoncompressClick(wxCommandEvent& event) {
 This may make them incompatible with other programs or older versions of OpenCPN.\n\
 Compressed charts may take slightly longer to load and display on some systems.\n\
 They can be decompressed again using unxz or 7 zip programs."),
-                     _("OpenCPN Warning"),
+                     _("SuperCPN Warning"),
                      wxYES | wxCANCEL | wxCANCEL_DEFAULT | wxICON_WARNING) !=
       wxID_YES)
     return;
@@ -8239,7 +8239,7 @@ They can be decompressed again using unxz or 7 zip programs."),
       filespecs.Add("*.Z");
 
   wxGenericProgressDialog prog1(
-      _("OpenCPN Compress Charts"), wxEmptyString,
+      _("SuperCPN Compress Charts"), wxEmptyString,
       filespecs.GetCount() * pListBoxSelections.GetCount() + 1, this,
       wxPD_SMOOTH | wxPD_ELAPSED_TIME | wxPD_ESTIMATED_TIME |
           wxPD_REMAINING_TIME | wxPD_CAN_SKIP);
@@ -8276,14 +8276,14 @@ They can be decompressed again using unxz or 7 zip programs."),
   prog1.Hide();
 
   if (charts.GetCount() == 0) {
-    OCPNMessageBox(this, _("No charts found to compress."), _("OpenCPN Info"));
+    OCPNMessageBox(this, _("No charts found to compress."), _("SuperCPN Info"));
     return;
   }
 
   // TODO: make this use threads
   unsigned long total_size = 0, total_compressed_size = 0, count = 0;
   wxGenericProgressDialog prog(
-      _("OpenCPN Compress Charts"), wxEmptyString, charts.GetCount() + 1, this,
+      _("SuperCPN Compress Charts"), wxEmptyString, charts.GetCount() + 1, this,
       wxPD_SMOOTH | wxPD_ELAPSED_TIME | wxPD_ESTIMATED_TIME |
           wxPD_REMAINING_TIME | wxPD_CAN_SKIP);
 
@@ -8313,7 +8313,7 @@ They can be decompressed again using unxz or 7 zip programs."),
                        count, total_size_mb, total_compressed_size_mb,
                        total_size_mb - total_compressed_size_mb,
                        (1 - total_compressed_size_mb / total_size_mb) * 100.0),
-      _("OpenCPN Info"));
+      _("SuperCPN Info"));
 
   UpdateWorkArrayFromTextCtl();
 
@@ -9514,7 +9514,7 @@ OpenGLOptionsDlg::OpenGLOptionsDlg(wxWindow* parent)
   m_cbPolygonSmoothing = new wxCheckBox(this, wxID_ANY, _("Polygon Smoothing"));
   m_cbLineSmoothing = new wxCheckBox(this, wxID_ANY, _("Line Smoothing"));
   m_cbSoftwareGL =
-      new wxCheckBox(this, wxID_ANY, _("Software OpenGL (restart OpenCPN)"));
+      new wxCheckBox(this, wxID_ANY, _("Software OpenGL (restart SuperCPN)"));
   m_cbUseAcceleratedPanning =
       new wxCheckBox(this, wxID_ANY, _("Use Accelerated Panning"));
 

@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Copyright 2018 Alec Leamas <leamas@nowhere.net> -->
 <component type="desktop">
-  <id>org.opencpn.OpenCPN</id>
+  <id>org.supercpn.SuperCPN</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-2.0+</project_license>
-  <name>OpenCPN</name>
-  <developer id="org.opencpn.opencpn">
-      <name>The OpenCPN Community</name>
+  <name>SuperCPN</name>
+  <developer id="org.supercpn.supercpn">
+      <name>The SuperCPN Community</name>
   </developer>
   <summary>Chartplotter and Navigation tool</summary>
   <summary xml:lang="sv">Kartplotter och navigationsprogram</summary>
   <provides>
-    <binary>opencpn</binary>
+    <binary>supercpn</binary>
   </provides>
-  <launchable type="desktop-id">opencpn.desktop</launchable>
+  <launchable type="desktop-id">supercpn.desktop</launchable>
   <description>
     <p>
       A cross-platform ship-borne GUI navigation application made

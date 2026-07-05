@@ -25,8 +25,8 @@ LangString text_please_wait_1 ${LANG_ITALIAN} "... attendere, prego!"
 #LangString Scanning_HDD ${LANG_ENGLISH} "Scanning HDD ..."
 LangString Scanning_HDD ${LANG_ITALIAN} "Scansione dell'HDD ..."
 
-#LangString OCPN_Scanning_HDD ${LANG_ENGLISH} "OpenCPN: Scan HDD ..., please wait!"
-LangString OCPN_Scanning_HDD ${LANG_ITALIAN} "OpenCPN: Scansione HDD ..., attendere, prego!"
+#LangString OCPN_Scanning_HDD ${LANG_ENGLISH} "SuperCPN: Scan HDD ..., please wait!"
+LangString OCPN_Scanning_HDD ${LANG_ITALIAN} "SuperCPN: Scansione HDD ..., attendere, prego!"
 
 #LangString Search_old_installations ${LANG_ENGLISH} "Searching for old installations"
 LangString Search_old_installations ${LANG_ITALIAN} "Ricerca di vecchie installazioni"
@@ -82,11 +82,11 @@ LangString CP_COMPLIST ${LANG_ITALIAN} "Modifica le opzioni individualmente:"
 #LangString Page_SetConfig_Title ${LANG_ENGLISH} "Default configuration settings"
 LangString Page_SetConfig_Title ${LANG_ITALIAN} "Opzioni di configurazione di Default"
 
-#LangString Page_SetConfig_Subtitle ${LANG_ENGLISH} "Preconfigure settings for OpenCPN"
-LangString Page_SetConfig_Subtitle ${LANG_ITALIAN} "Preconfigurare i settaggi per OpenCPN"
+#LangString Page_SetConfig_Subtitle ${LANG_ENGLISH} "Preconfigure settings for SuperCPN"
+LangString Page_SetConfig_Subtitle ${LANG_ITALIAN} "Preconfigurare i settaggi per SuperCPN"
 
-#LangString Select_Chart_Directory ${LANG_ENGLISH} "Please select a chart directory to add to OpenCPN"
-LangString Select_Chart_Directory ${LANG_ITALIAN} "Selezionare una cartella di mappe da aggiungere a OpenCPN"
+#LangString Select_Chart_Directory ${LANG_ENGLISH} "Please select a chart directory to add to SuperCPN"
+LangString Select_Chart_Directory ${LANG_ITALIAN} "Selezionare una cartella di mappe da aggiungere a SuperCPN"
 
 #LangString BT_Browse_SetConfig_Text ${LANG_ENGLISH} "Browse..."
 LangString BT_Browse_SetConfig_Text ${LANG_ITALIAN} "Browse..."
@@ -100,14 +100,14 @@ LangString BT_Delete_SetConfig_Text ${LANG_ITALIAN} "Elimina"
 #LangString GB_ChartDir_SetConfig_Text ${LANG_ENGLISH} "Add Chart Directory"
 LangString GB_ChartDir_SetConfig_Text ${LANG_ITALIAN} "Aggiungi una cartella di mappe"
 
-#LangString CB_Language_SetConfig_Text ${LANG_ENGLISH} "Set OpenCPN program language to $LANG_NAME"
-LangString CB_Language_SetConfig_Text ${LANG_ITALIAN} "Configura la lingua di OpenCPN come $LANG_NAME"
+#LangString CB_Language_SetConfig_Text ${LANG_ENGLISH} "Set SuperCPN program language to $LANG_NAME"
+LangString CB_Language_SetConfig_Text ${LANG_ITALIAN} "Configura la lingua di SuperCPN come $LANG_NAME"
 
-#LangString GB_Language_SetConfig_Text ${LANG_ENGLISH} "Set OpenCPN program language"
-LangString GB_Language_SetConfig_Text ${LANG_ITALIAN} "Configura la lingua di OpenCPN"
+#LangString GB_Language_SetConfig_Text ${LANG_ENGLISH} "Set SuperCPN program language"
+LangString GB_Language_SetConfig_Text ${LANG_ITALIAN} "Configura la lingua di SuperCPN"
 
-#LangString Label_SetConfig_Text ${LANG_ENGLISH} "Configure preconfig settings for the OpenCPN program.$\r$\nThese settings are saved in the file opencpn.ini."
-LangString Label_SetConfig_Text ${LANG_ITALIAN} "Preconfigurare le opzioni di OpenCPN.$\r$\nQueste opzioni verranno salvate in opencpn.ini."
+#LangString Label_SetConfig_Text ${LANG_ENGLISH} "Configure preconfig settings for the SuperCPN program.$\r$\nThese settings are saved in the file opencpn.ini."
+LangString Label_SetConfig_Text ${LANG_ITALIAN} "Preconfigurare le opzioni di SuperCPN.$\r$\nQueste opzioni verranno salvate in opencpn.ini."
 
 #LangString Page_Confirm_Title ${LANG_ENGLISH} "Ready to Install"
 LangString Page_Confirm_Title ${LANG_ITALIAN} "Pronto per Installare"
@@ -154,8 +154,8 @@ LangString not_selected ${LANG_ITALIAN} "non selezionato"
 #LangString text_none ${LANG_ENGLISH} "none"
 LangString text_none ${LANG_ITALIAN} "nessuno"
 
-#LangString SecGrpResetConfig_Text ${LANG_ENGLISH} "Reset ALL OpenCPN configuration files"
-LangString SecGrpResetConfig_Text ${LANG_ITALIAN} "Azzera tutti i file di configurazione di OpenCPN"
+#LangString SecGrpResetConfig_Text ${LANG_ENGLISH} "Reset ALL SuperCPN configuration files"
+LangString SecGrpResetConfig_Text ${LANG_ITALIAN} "Azzera tutti i file di configurazione di SuperCPN"
 
 #LangString SecDeleteConfigFile_Text ${LANG_ENGLISH} "Delete config file (opencpn.ini)"
 LangString SecDeleteConfigFile_Text ${LANG_ITALIAN} "Cancella il file di configurazione (opencpn.ini)"
@@ -175,8 +175,8 @@ LangString SecDeleteLogFile_Text ${LANG_ITALIAN} "Cancella il file di Log (openc
 #LangString SecDeleteNavobjFile_Text ${LANG_ENGLISH} "Delete Navobject file (navobj.xml)"
 LangString SecDeleteNavobjFile_Text ${LANG_ITALIAN} "Cancella il file oggetti nav (navobj.xml)"
 
-#LangString SecSetConfig_Text ${LANG_ENGLISH} "OpenCPN Configuration Settings"
-LangString SecSetConfig_Text ${LANG_ITALIAN} "Opzioni di configurazione di OpenCPN"
+#LangString SecSetConfig_Text ${LANG_ENGLISH} "SuperCPN Configuration Settings"
+LangString SecSetConfig_Text ${LANG_ITALIAN} "Opzioni di configurazione di SuperCPN"
 
 #LangString SecSetConfigLang_Text ${LANG_ENGLISH} "Set language to $LANG_NAME"
 LangString SecSetConfigLang_Text ${LANG_ITALIAN} "Configura Lingua come $LANG_NAME"
@@ -202,19 +202,19 @@ LangString SecDeleteCM93_Desc ${LANG_ITALIAN} "Cancella la sottocartella CM93 ch
 #LangString SecDeleteNavobjFile_Desc ${LANG_ENGLISH} "Deletes the file 'navobj.xml' in the config folder. This file contains the Tracks."
 LangString SecDeleteNavobjFile_Desc ${LANG_ITALIAN} "Cancella il file 'navobj.xml'. Questo file contiene le Tracce di navigazione."
 
-#LangString SecDeleteLogFile_Desc ${LANG_ENGLISH} "Deletes the OpenCPN log file 'opencpn.log'."
-LangString SecDeleteLogFile_Desc ${LANG_ITALIAN} "Cancella il file di Log di OpenCPN 'opencpn.log'."
+#LangString SecDeleteLogFile_Desc ${LANG_ENGLISH} "Deletes the SuperCPN log file 'opencpn.log'."
+LangString SecDeleteLogFile_Desc ${LANG_ITALIAN} "Cancella il file di Log di SuperCPN 'opencpn.log'."
 
 #LangString SecGrpShortcuts_Desc ${LANG_ENGLISH} "Creates shortcuts in both, the Start Menu and on the Desktop."
 LangString SecGrpShortcuts_Desc ${LANG_ITALIAN} "Crea collegamenti sia in Start Menu sia sul Desktop."
 
-#LangString SecShortcutStartmenu_Desc ${LANG_ENGLISH} "Creates shortcuts for OpenCPN and the Uninstaller in the Start Menu - configurable on the next page."
-LangString SecShortcutStartmenu_Desc ${LANG_ITALIAN} "Crea collegamenti a OpenCPN e al disinstallatore nel Menu Start - configurabile nella prossima pagina."
+#LangString SecShortcutStartmenu_Desc ${LANG_ENGLISH} "Creates shortcuts for SuperCPN and the Uninstaller in the Start Menu - configurable on the next page."
+LangString SecShortcutStartmenu_Desc ${LANG_ITALIAN} "Crea collegamenti a SuperCPN e al disinstallatore nel Menu Start - configurabile nella prossima pagina."
 
-#LangString SecShortcutDesktop_Desc ${LANG_ENGLISH} "Creates a shortcut for OpenCPN on the Desktop."
-LangString SecShortcutDesktop_Desc ${LANG_ITALIAN} "Crea un collegamento a OpenCPN sul Desktop."
+#LangString SecShortcutDesktop_Desc ${LANG_ENGLISH} "Creates a shortcut for SuperCPN on the Desktop."
+LangString SecShortcutDesktop_Desc ${LANG_ITALIAN} "Crea un collegamento a SuperCPN sul Desktop."
 
-#LangString SecSetConfig_Desc ${LANG_ENGLISH} "Preconfigure the language setting and the chart dir(s) for OpenCPN. When selected a separate page is shown for configuration."
+#LangString SecSetConfig_Desc ${LANG_ENGLISH} "Preconfigure the language setting and the chart dir(s) for SuperCPN. When selected a separate page is shown for configuration."
 LangString SecSetConfig_Desc ${LANG_ITALIAN} "Preconfigura la lingua e le cartelle di mappe. Se selezionato, verrà mostrata una pagina di configurazione separata."
 
 #LangString UnSecDeleteConfigFolder_Desc ${LANG_ENGLISH} "Deletes the config folder and all its files and subdirectories."
@@ -226,41 +226,41 @@ LangString Uninstall_Link ${LANG_ITALIAN} "Disinstalla @CPACK_PACKAGE_NAME@ @CPA
 #LangString Page_TypeInst_Title ${LANG_ENGLISH} "Previous Installations"
 LangString Page_TypeInst_Title ${LANG_ITALIAN} "Precedente Installazione"
 
-#LangString Page_TypeInst_Subtitle ${LANG_ENGLISH} "$MULTIPLE_INSTALLS installations of OpenCPN found.$\r$\nChoose how you want to install OpenCPN."
-LangString Page_TypeInst_Subtitle ${LANG_ITALIAN} "$MULTIPLE_INSTALLS installazioni di OpenCPN sono state trovate.$\r$\nScegliere come si vuole installare OpenCPN."
+#LangString Page_TypeInst_Subtitle ${LANG_ENGLISH} "$MULTIPLE_INSTALLS installations of SuperCPN found.$\r$\nChoose how you want to install SuperCPN."
+LangString Page_TypeInst_Subtitle ${LANG_ITALIAN} "$MULTIPLE_INSTALLS installazioni di SuperCPN sono state trovate.$\r$\nScegliere come si vuole installare SuperCPN."
 
 #LangString Page_TypeInst_Title_1 ${LANG_ENGLISH} "Already Installed"
 LangString Page_TypeInst_Title_1 ${LANG_ITALIAN} "Già Installato"
 
-#LangString Page_TypeInst_Subtitle_1 ${LANG_ENGLISH} "Found installed version of OpenCPN.$\r$\nChoose how you want to install OpenCPN."
-LangString Page_TypeInst_Subtitle_1 ${LANG_ITALIAN} "Trovate versioni installate di OpenCPN.$\r$\nScegliere come si vuole installare OpenCPN."
+#LangString Page_TypeInst_Subtitle_1 ${LANG_ENGLISH} "Found installed version of SuperCPN.$\r$\nChoose how you want to install SuperCPN."
+LangString Page_TypeInst_Subtitle_1 ${LANG_ITALIAN} "Trovate versioni installate di SuperCPN.$\r$\nScegliere come si vuole installare SuperCPN."
 
 #LangString Page_TypeInst_Title_Exists ${LANG_ENGLISH} "Version Already Installed"
 LangString Page_TypeInst_Title_Exists ${LANG_ITALIAN} "Versione già installata"
 
-#LangString Page_TypeInst_Subtitle_Exists ${LANG_ENGLISH} "OpenCPN @CPACK_PACKAGE_VERSION@ is already installed.$\r$\nChoose how you want to install OpenCPN."
-LangString Page_TypeInst_Subtitle_Exists ${LANG_ITALIAN} "OpenCPN @CPACK_PACKAGE_VERSION@ è già installato.$\r$\nScegliere come si vuole installare OpenCPN."
+#LangString Page_TypeInst_Subtitle_Exists ${LANG_ENGLISH} "SuperCPN @CPACK_PACKAGE_VERSION@ is already installed.$\r$\nChoose how you want to install SuperCPN."
+LangString Page_TypeInst_Subtitle_Exists ${LANG_ITALIAN} "SuperCPN @CPACK_PACKAGE_VERSION@ è già installato.$\r$\nScegliere come si vuole installare SuperCPN."
 
-#LangString Label_TypeInst_Reinstall_Text ${LANG_ENGLISH} "OpenCPN @CPACK_PACKAGE_VERSION@ is already installed on your system. You can reinstall the version now using the previous settings. If you wish to install the program with different settings, cancel installation and un-install the existing version first. Click Next to continue."
-LangString Label_TypeInst_Reinstall_Text ${LANG_ITALIAN} "OpenCPN @CPACK_PACKAGE_VERSION@ è già installato sul sistema. Si può reinstallare questa versione usando le precedenti impostazioni. Se si vogliono cambiare le impostazioni, annullare l'installazione e disinstallare OpenCPN prima di reinstallarlo. Premere Avanti per continuare."
+#LangString Label_TypeInst_Reinstall_Text ${LANG_ENGLISH} "SuperCPN @CPACK_PACKAGE_VERSION@ is already installed on your system. You can reinstall the version now using the previous settings. If you wish to install the program with different settings, cancel installation and un-install the existing version first. Click Next to continue."
+LangString Label_TypeInst_Reinstall_Text ${LANG_ITALIAN} "SuperCPN @CPACK_PACKAGE_VERSION@ è già installato sul sistema. Si può reinstallare questa versione usando le precedenti impostazioni. Se si vogliono cambiare le impostazioni, annullare l'installazione e disinstallare SuperCPN prima di reinstallarlo. Premere Avanti per continuare."
 
 #LangString RB_Reinstall_TypeInst_Text ${LANG_ENGLISH} "Reinstall using previous settings"
 LangString RB_Reinstall_TypeInst_Text ${LANG_ITALIAN} "Reinstallare usando le precedenti impostazioni"
 
-#LangString Label_TypeInst_Upgrade_Text ${LANG_ENGLISH} "An older version of OpenCPN is installed on your system. Select the installation type you want to perform and click Next to continue."
-LangString Label_TypeInst_Upgrade_Text ${LANG_ITALIAN} "Una vecchia versione di OpenCPN è installata sul sistema. Selezionare il tipo di installazione desiderata e premere Avanti per continuare."
+#LangString Label_TypeInst_Upgrade_Text ${LANG_ENGLISH} "An older version of SuperCPN is installed on your system. Select the installation type you want to perform and click Next to continue."
+LangString Label_TypeInst_Upgrade_Text ${LANG_ITALIAN} "Una vecchia versione di SuperCPN è installata sul sistema. Selezionare il tipo di installazione desiderata e premere Avanti per continuare."
 
-#LangString RB_Upgrade_TypeInst_Text ${LANG_ENGLISH} "Upgrade OpenCPN using previous settings (recommended)"
-LangString RB_Upgrade_TypeInst_Text ${LANG_ITALIAN} "Aggiornare OpenCPN usando le vecchie impostazioni (reccomandato)"
+#LangString RB_Upgrade_TypeInst_Text ${LANG_ENGLISH} "Upgrade SuperCPN using previous settings (recommended)"
+LangString RB_Upgrade_TypeInst_Text ${LANG_ITALIAN} "Aggiornare SuperCPN usando le vecchie impostazioni (reccomandato)"
 
-#LangString Label_TypeInst_Downgrade_Text ${LANG_ENGLISH} "A newer version of OpenCPN is installed on your system. It is not recommended to downgrade to an older version. Select the installation type you want to perform and click Next to continue."
+#LangString Label_TypeInst_Downgrade_Text ${LANG_ENGLISH} "A newer version of SuperCPN is installed on your system. It is not recommended to downgrade to an older version. Select the installation type you want to perform and click Next to continue."
 LangString Label_TypeInst_Downgrade_Text ${LANG_ITALIAN} "Una versione più aggiornata è già installata sul sistema. Non è raccomandato installare una versione più vecchia. Selezionare il tipo di installazione desiderata e premere Avanti per continuare."
 
-#LangString RB_Downgrade_TypeInst_Text ${LANG_ENGLISH} "Downgrade OpenCPN using previous settings (recommended)"
+#LangString RB_Downgrade_TypeInst_Text ${LANG_ENGLISH} "Downgrade SuperCPN using previous settings (recommended)"
 LangString RB_Downgrade_TypeInst_Text ${LANG_ITALIAN} "Downgrade ad una versione precedente usando le stesse impostazioni (raccomandato)"
 
-#LangString Label_TypeInst_Parallel_Text ${LANG_ENGLISH} "Setup has detected several installed versions of OpenCPN on your system. It is recommended to have only one version of OpenCPN installed at a time. Select the operation you want to perform and click Next to continue."
-LangString Label_TypeInst_Parallel_Text ${LANG_ITALIAN} "Esistono diverse versioni di openCPN installate sul sistema. E' raccomandato avere una sola versione di OpenCPN installata. Selezionare l'operazione desiderata e premere Avanti per continuare."
+#LangString Label_TypeInst_Parallel_Text ${LANG_ENGLISH} "Setup has detected several installed versions of SuperCPN on your system. It is recommended to have only one version of SuperCPN installed at a time. Select the operation you want to perform and click Next to continue."
+LangString Label_TypeInst_Parallel_Text ${LANG_ITALIAN} "Esistono diverse versioni di openCPN installate sul sistema. E' raccomandato avere una sola versione di SuperCPN installata. Selezionare l'operazione desiderata e premere Avanti per continuare."
 
 #LangString RB_Parallel_TypeInst_Text ${LANG_ENGLISH} "Parallel Installation (advanced users)"
 LangString RB_Parallel_TypeInst_Text ${LANG_ITALIAN} "Installazione Parallela (Utenti Esperti)"
@@ -271,8 +271,8 @@ LangString EmptyString ${LANG_ITALIAN} ""
 #LangString Show_Readme_Text ${LANG_ENGLISH} "Show Install Log file"
 LangString Show_Readme_Text ${LANG_ITALIAN} "Mostra il Log dell'installazione"
 
-#LangString Finish_Link_Text ${LANG_ENGLISH} "OpenCPN website (Internet connection required)"
-LangString Finish_Link_Text ${LANG_ITALIAN} "OpenCPN website (richiesta una connessione a Internet)"
+#LangString Finish_Link_Text ${LANG_ENGLISH} "SuperCPN website (Internet connection required)"
+LangString Finish_Link_Text ${LANG_ITALIAN} "SuperCPN website (richiesta una connessione a Internet)"
 
 #LangString Finish_Link_URL ${LANG_ENGLISH} "http://opencpn.info/?ref=installer&user=$USERS_NAME&lang=$REG_LANG&version=@CPACK_PACKAGE_VERSION@"
 LangString Finish_Link_URL ${LANG_ITALIAN} "http://opencpn.info/?ref=installer&user=$USERS_NAME&lang=$REG_LANG&version=@CPACK_PACKAGE_VERSION@"
@@ -295,10 +295,10 @@ LangString Msg_Error_Remove_InstDir ${LANG_ITALIAN} "La cartella di installazion
 #LangString Msg_Path_Invalid ${LANG_ENGLISH} "The entered path is invalid!$\r$\n$\r$\nPlease check your input."
 LangString Msg_Path_Invalid ${LANG_ITALIAN} "La cartella specificata non è valida!$\r$\n$\r$\nVerificare i dati immessi."
 
-#LangString Msg_Path_Installation_Exists ${LANG_ENGLISH} "There already exists an installation of OpenCPN in the given path.$\r$\nIf you wish to use this path, first uninstall the version. Or select another path for this installation."
-LangString Msg_Path_Installation_Exists ${LANG_ITALIAN} "Esiste già una installazione di OpenCPN nella cartella specificata.$\r$\nSe si desidera usare questa cartella, disinstallare prima OpenCPN. Oppure selezionare un'altra cartella."
+#LangString Msg_Path_Installation_Exists ${LANG_ENGLISH} "There already exists an installation of SuperCPN in the given path.$\r$\nIf you wish to use this path, first uninstall the version. Or select another path for this installation."
+LangString Msg_Path_Installation_Exists ${LANG_ITALIAN} "Esiste già una installazione di SuperCPN nella cartella specificata.$\r$\nSe si desidera usare questa cartella, disinstallare prima SuperCPN. Oppure selezionare un'altra cartella."
 
-#LangString Msg_Uninstall_Old_Versions ${LANG_ENGLISH} "Setup has detected at least one older version of OpenCPN which is not compatible with the new version control.$\r$\nIt is recommended to first uninstall all of these installations (this does not affect your Config files) and clean-up the Registry.$\r$\nIf you click Yes on the next page a listbox with all installation locations will be shown and you will have the possibility to select the installations you wish to uninstall.$\r$\nIf you are unsure about possible other previous installations than those shown in the listbox, you can also perform a scan of the entire Harddisk (ATTENTION: This may take several minutes) to find all install locations (recommended).$\r$\n$\r$\nDo you want to uninstall the old version(s)?"
+#LangString Msg_Uninstall_Old_Versions ${LANG_ENGLISH} "Setup has detected at least one older version of SuperCPN which is not compatible with the new version control.$\r$\nIt is recommended to first uninstall all of these installations (this does not affect your Config files) and clean-up the Registry.$\r$\nIf you click Yes on the next page a listbox with all installation locations will be shown and you will have the possibility to select the installations you wish to uninstall.$\r$\nIf you are unsure about possible other previous installations than those shown in the listbox, you can also perform a scan of the entire Harddisk (ATTENTION: This may take several minutes) to find all install locations (recommended).$\r$\n$\r$\nDo you want to uninstall the old version(s)?"
 LangString Msg_Uninstall_Old_Versions ${LANG_ITALIAN} "E' stata trovata una vecchia versione incompatibile con questa.$\r$\nIt is recommended to first uninstall all of these installations (this does not affect your Config files) and clean-up the Registry.$\r$\nIf you click Yes on the next page a listbox with all installation locations will be shown and you will have the possibility to select the installations you wish to uninstall.$\r$\nIf you are unsure about possible other previous installations than those shown in the listbox, you can also perform a scan of the entire Harddisk (ATTENTION: This may take several minutes) to find all install locations (recommended).$\r$\n$\r$\nDo you want to uninstall the old version(s)?"
 
 #LangString Msg_Not_All_Old_Uninstalled ${LANG_ENGLISH} "You have not uninstalled all previous installations.$\r$\n$\r$\nDo you want to continue anyway?"
@@ -346,8 +346,8 @@ LangString Uninstall_Folder_Name ${LANG_ITALIAN} "Disinstalla"
 LangString ^NameDA ${LANG_ITALIAN} "@CPACK_PACKAGE_NAME@ Version @CPACK_PACKAGE_VERSION@"
 
 ;added on 2011-07-24
-#LangString License_Message ${LANG_ENGLISH} "OpenCPN is software libre. You are encouraged and legally entitled to copy, reinstall, modify, and redistribute this program for yourself and your friends under the terms of the GPL. $\r$\nSmooth sailing!"
-LangString License_Message ${LANG_ITALIAN} "OpenCPN è un software libero. Sei incoraggiato, ed hai legalmente diritto, a copiare, installare, modificare e ridistribuire questo programma per te e per i tuoi amici nei termini della licenza GPL. Buon Vento!"
+#LangString License_Message ${LANG_ENGLISH} "SuperCPN is software libre. You are encouraged and legally entitled to copy, reinstall, modify, and redistribute this program for yourself and your friends under the terms of the GPL. $\r$\nSmooth sailing!"
+LangString License_Message ${LANG_ITALIAN} "SuperCPN è un software libero. Sei incoraggiato, ed hai legalmente diritto, a copiare, installare, modificare e ridistribuire questo programma per te e per i tuoi amici nei termini della licenza GPL. Buon Vento!"
 
 ;Needs to be translated:
 #LangString Installer_Unsupported_XP_SP_Version ${LANG_ENGLISH} "Your Windows XP Service Pack version is not supported (it's too old)!$\r$\nYou need at least Windows XP SP3."

@@ -1386,7 +1386,7 @@ void ChartCanvas::SetGroupIndex(int index, bool autoSwitch) {
 
     msg += _("\" is empty.");
 
-    OCPNMessageBox(this, msg, _("OpenCPN Group Notice"), wxICON_INFORMATION, 2);
+    OCPNMessageBox(this, msg, _("SuperCPN Group Notice"), wxICON_INFORMATION, 2);
 
     return;
   }
@@ -1401,7 +1401,7 @@ void ChartCanvas::SetGroupIndex(int index, bool autoSwitch) {
 
     msg += _("\" is empty, switching to \"All Active Charts\" group.");
 
-    OCPNMessageBox(this, msg, _("OpenCPN Group Notice"), wxOK, 5);
+    OCPNMessageBox(this, msg, _("SuperCPN Group Notice"), wxOK, 5);
   }
 }
 
@@ -7091,6 +7091,7 @@ void ChartCanvas::OnSize(wxSizeEvent &event) {
   // Convert to physical pixels.
   m_canvas_width *= m_displayScale;
   m_canvas_height *= m_displayScale;
+  if ((m_canvas_width < 1) || (m_canvas_height < 1)) return;
 
   //    Resize the current viewport
   VPoint.pix_width = m_canvas_width;
@@ -8668,7 +8669,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
             // Avoid route finish on focus change for message dialog
             m_FinishRouteOnKillFocus = false;
             int dlg_return =
-                OCPNMessageBox(this, msg, _("OpenCPN Route Create"),
+                OCPNMessageBox(this, msg, _("SuperCPN Route Create"),
                                (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
             m_FinishRouteOnKillFocus = true;
             if (dlg_return == wxID_YES) {
@@ -8716,7 +8717,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
 
                   if (tail->GetIndexOf(pMousePoint) > 0) {  // Anything to do?
                     dlg_return = OCPNMessageBox(
-                        this, dmsg, _("OpenCPN Route Create"),
+                        this, dmsg, _("SuperCPN Route Create"),
                         (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                     m_FinishRouteOnKillFocus = true;
 
@@ -8737,7 +8738,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
 
                   if (tail->GetLastPoint() != pMousePoint) {  // Anything to do?
                     dlg_return = OCPNMessageBox(
-                        this, dmsg, _("OpenCPN Route Create"),
+                        this, dmsg, _("SuperCPN Route Create"),
                         (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                     m_FinishRouteOnKillFocus = true;
 
@@ -8800,7 +8801,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
               m_disable_edge_pan = true;  // This helps on OS X if MessageBox
                                           // does not fully capture mouse
 
-              int answer = OCPNMessageBox(this, msg, _("OpenCPN Route Create"),
+              int answer = OCPNMessageBox(this, msg, _("SuperCPN Route Create"),
                                           wxYES_NO | wxNO_DEFAULT);
 
               m_disable_edge_pan = false;
@@ -9262,7 +9263,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
           m_FinishRouteOnKillFocus =
               false;  // Avoid route finish on focus change for message dialog
           dlg_return = OCPNMessageBox(
-              this, _("Use nearby waypoint?"), _("OpenCPN Route Create"),
+              this, _("Use nearby waypoint?"), _("SuperCPN Route Create"),
               (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
           m_FinishRouteOnKillFocus = true;
 #else
@@ -9300,7 +9301,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
 
                 if (tail->GetIndexOf(pMousePoint) != 1) {  // Anything to do?
                   dlg_return =
-                      OCPNMessageBox(this, dmsg, _("OpenCPN Route Create"),
+                      OCPNMessageBox(this, dmsg, _("SuperCPN Route Create"),
                                      (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                   m_FinishRouteOnKillFocus = true;
 
@@ -9320,7 +9321,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
 
                 if (tail->GetLastPoint() != pMousePoint) {  // Anything to do?
                   dlg_return =
-                      OCPNMessageBox(this, dmsg, _("OpenCPN Route Create"),
+                      OCPNMessageBox(this, dmsg, _("SuperCPN Route Create"),
                                      (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                   m_FinishRouteOnKillFocus = true;
 
@@ -9379,7 +9380,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
 
 #ifndef __WXOSX__
             m_FinishRouteOnKillFocus = false;
-            int answer = OCPNMessageBox(this, msg, _("OpenCPN Route Create"),
+            int answer = OCPNMessageBox(this, msg, _("SuperCPN Route Create"),
                                         wxYES_NO | wxNO_DEFAULT);
             m_FinishRouteOnKillFocus = true;
 #else
@@ -9758,7 +9759,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
                     OCPNMessageBox(this,
                                    _("Replace this RoutePoint by the nearby "
                                      "Waypoint?"),
-                                   _("OpenCPN RoutePoint change"),
+                                   _("SuperCPN RoutePoint change"),
                                    (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                 if (dlg_return == wxID_YES) {
                   /*double confirmation if the dragged point has been manually
@@ -9790,7 +9791,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
                               _("Full route to be appended to dragged route?");
 
                         dlg_return1 = OCPNMessageBox(
-                            this, dmsg, _("OpenCPN Route Create"),
+                            this, dmsg, _("SuperCPN Route Create"),
                             (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                         if (dlg_return1 == wxID_YES) {
                           appending = true;
@@ -9808,7 +9809,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
                               "Full route to be inserted into dragged route?");
 
                         dlg_return1 = OCPNMessageBox(
-                            this, dmsg, _("OpenCPN Route Create"),
+                            this, dmsg, _("SuperCPN Route Create"),
                             (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                         if (dlg_return1 == wxID_YES) {
                           inserting = true;
@@ -9824,7 +9825,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
                         _("Do you really want to delete and replace this "
                           "WayPoint") +
                             "\n" + _("which has been created manually?"),
-                        ("OpenCPN RoutePoint warning"),
+                        ("SuperCPN RoutePoint warning"),
                         (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                   }
                 }
@@ -10030,7 +10031,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
                     OCPNMessageBox(this,
                                    _("Replace this RoutePoint by the nearby "
                                      "Waypoint?"),
-                                   _("OpenCPN RoutePoint change"),
+                                   _("SuperCPN RoutePoint change"),
                                    (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                 if (dlg_return == wxID_YES) {
                   /*double confirmation if the dragged point has been manually
@@ -10061,7 +10062,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
                               _("Full route to be appended to dragged route?");
 
                         dlg_return1 = OCPNMessageBox(
-                            this, dmsg, _("OpenCPN Route Create"),
+                            this, dmsg, _("SuperCPN Route Create"),
                             (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                         if (dlg_return1 == wxID_YES) {
                           appending = true;
@@ -10079,7 +10080,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
                               "Full route to be inserted into dragged route?");
 
                         dlg_return1 = OCPNMessageBox(
-                            this, dmsg, _("OpenCPN Route Create"),
+                            this, dmsg, _("SuperCPN Route Create"),
                             (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                         if (dlg_return1 == wxID_YES) {
                           inserting = true;
@@ -10095,7 +10096,7 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
                         _("Do you really want to delete and replace this "
                           "WayPoint") +
                             "\n" + _("which has been created manually?"),
-                        ("OpenCPN RoutePoint warning"),
+                        ("SuperCPN RoutePoint warning"),
                         (long)wxYES_NO | wxCANCEL | wxYES_DEFAULT);
                   }
                 }

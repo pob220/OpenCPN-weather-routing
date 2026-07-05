@@ -99,6 +99,7 @@
 
 #include "model/ais_decoder.h"
 #include "model/ais_state_vars.h"
+#include "model/boat_profile_service.h"
 #include "model/certificates.h"
 #include "model/cmdline.h"
 #include "model/comm_bridge.h"
@@ -202,13 +203,24 @@ void RedirectIOToConsole();
 
 using namespace std::literals::chrono_literals;
 
+static void EnsureBoatProfileStore() {
+  wxString error;
+  auto& service = BoatProfileService::Get();
+  if (!service.EnsureActiveProfile(_("My Boat"), &error)) {
+    wxLogMessage("SuperCPN boat profile initialization failed: " + error);
+    return;
+  }
+  if (const BoatProfile* profile = service.GetActiveProfile())
+    wxLogMessage("SuperCPN active boat profile: " + profile->name);
+}
+
 const char *const kUsage =
     R"(Usage:
-  opencpn -h | --help
-  opencpn [-p] [-f] [-G] [-g] [-P] [-l <str>] [-u <num>] [-U] [-s] [GPX file ...]
-  opencpn --remote [-R] | -q] | -e] |-o <str>]
+  supercpn -h | --help
+  supercpn [-p] [-f] [-G] [-g] [-P] [-l <str>] [-u <num>] [-U] [-s] [GPX file ...]
+  supercpn --remote [-R] | -q] | -e] |-o <str>]
 
-Options for starting opencpn
+Options for starting SuperCPN
 
   -c, --configdir=<dirpath>     Use alternative configuration directory.
   -p, --portable               	Run in portable mode.
@@ -217,7 +229,7 @@ Options for starting opencpn
                                 be remembered.
   -g, --rebuild_gl_raster_cache	Rebuild OpenGL raster cache on start.
   -D, --rebuild_chart_db        Rescan chart directories and rebuild the chart database
-  -P, --parse_all_enc          	Convert all S-57 charts to OpenCPN's internal format on start.
+  -P, --parse_all_enc          	Convert all S-57 charts to SuperCPN's internal format on start.
   -l, --loglevel=<str>         	Amount of logging: error, warning, message, info, debug or trace
   -u, --unit_test_1=<num>      	Display a slideshow of <num> charts and then exit.
                                 Zero or negative <num> specifies no limit.
@@ -225,12 +237,12 @@ Options for starting opencpn
   -s, --safe_mode              	Run without plugins, opengl and other "dangerous" stuff
   -W, --config_wizard          	Start with initial configuration wizard
 
-Options manipulating already started opencpn
+Options manipulating already started SuperCPN
   -r, --remote                 	Execute commands on already running instance
-  -R, --raise                  	Make running OpenCPN visible if hidden
-  -q, --quit                   	Terminate already running opencpn
+  -R, --raise                  	Make running SuperCPN visible if hidden
+  -q, --quit                   	Terminate already running SuperCPN
   -e, --get_rest_endpoint      	Print rest server endpoint and exit.
-  -o, --open=<GPX file>         Open file in running opencpn
+  -o, --open=<GPX file>         Open file in running SuperCPN
 
 Arguments:
   GPX  file                     GPX-formatted file with waypoints or routes.
@@ -375,20 +387,20 @@ public:
 bool ShowNavWarning() {
   wxString msg(
       _("\n\
-OpenCPN is distributed in the hope that it will be useful, \
+SuperCPN is distributed in the hope that it will be useful, \
 but WITHOUT ANY WARRANTY; without even the implied \
 warranty of MERCHANTABILITY or FITNESS FOR A \
 PARTICULAR PURPOSE.\n\n\
 See the GNU General Public License for more details.\n\n\
-OpenCPN must only be used in conjunction with approved \
+SuperCPN must only be used in conjunction with approved \
 paper charts and traditional methods of navigation.\n\n\
-DO NOT rely upon OpenCPN for safety of life or property.\n\n\
+DO NOT rely upon SuperCPN for safety of life or property.\n\n\
 Please click \"Agree\" and proceed, or \"Cancel\" to quit.\n"));
 
   wxString vs = wxString::Format(" .. Version %s", VERSION_FULL);
 
 #ifdef __ANDROID__
-  androidShowDisclaimer(_("OpenCPN for Android") + vs, msg);
+  androidShowDisclaimer(_("SuperCPN for Android") + vs, msg);
   return true;
 #else
   msg.Replace("\n", "<br>");
@@ -398,7 +410,7 @@ Please click \"Agree\" and proceed, or \"Cancel\" to quit.\n"));
   html << msg.ToStdString();
   html << "</p></body></html>";
 
-  std::string title = _("Welcome to OpenCPN").ToStdString();
+  std::string title = _("Welcome to SuperCPN").ToStdString();
   std::string action = _("Agree").ToStdString();
   AlertDialog info_dlg(gFrame, title, action);
   info_dlg.SetInitialSize();
@@ -526,7 +538,7 @@ bool MyApp::OpenFile(const std::string &path) {
   if (!result) {
     std::string s(_("Cannot load route or waypoint file: "));
     s += std::string("\"") + path + "\"";
-    wxMessageBox(s, "OpenCPN", wxICON_WARNING | wxOK);
+    wxMessageBox(s, "SuperCPN", wxICON_WARNING | wxOK);
     return false;
   }
 
@@ -782,9 +794,9 @@ bool MyApp::OnInit() {
         // Next start  will proceed normally. This may leave a zombie OpenCPN,
         // but at least O starts.
         m_checker.CleanUp();
-        wxMessageBox(_("Sorry, an existing instance of OpenCPN may be too busy "
+        wxMessageBox(_("Sorry, an existing instance of SuperCPN may be too busy "
                        "to respond.\nPlease retry."),
-                     "OpenCPN", wxICON_INFORMATION | wxOK);
+                     "SuperCPN", wxICON_INFORMATION | wxOK);
         m_exitcode = 2;
         return true;  // main program quiet exit.
       }
@@ -820,7 +832,7 @@ bool MyApp::OnInit() {
   // Set the name of the app as displayed to the user.
   // This is necessary at least on OS X, for the capitalisation to be correct in
   // the system menus.
-  MyApp::SetAppDisplayName("OpenCPN");
+  MyApp::SetAppDisplayName("SuperCPN");
 
   //  Seed the random number generator
   wxDateTime x = wxDateTime::UNow();
@@ -1040,7 +1052,7 @@ bool MyApp::OnInit() {
   g_StyleManager->SetStyle("MUI_flat");
   if (!g_StyleManager->IsOK()) {
     wxString msg = _("Failed to initialize the user interface. ");
-    msg << _("OpenCPN cannot start. ");
+    msg << _("SuperCPN cannot start. ");
     msg << _("The necessary configuration files were not found. ");
     msg << _("See the log file at ") << g_Platform->GetLogFileName()
         << _(" for details.") << "\n\n";
@@ -1145,6 +1157,8 @@ bool MyApp::OnInit() {
     }
   }
 #endif
+
+  EnsureBoatProfileStore();
 
   // Instantiate and initialize the Config Manager
   ConfigMgr::Get();
@@ -1283,7 +1297,7 @@ bool MyApp::OnInit() {
   androidHideBusyIcon();
 #endif
   wxLogMessage(
-      wxString::Format(_("OpenCPN Initialized in %ld ms."), init_sw.Time()));
+      wxString::Format(_("SuperCPN Initialized in %ld ms."), init_sw.Time()));
 
   wxMilliSleep(100);
 
@@ -1459,7 +1473,7 @@ void MyApp::BuildMainFrame() {
 
   // Strip the commit SHA number from the string to be shown in frame title.
   wxString short_version_name = wxString(PACKAGE_VERSION).BeforeFirst('+');
-  wxString myframe_window_title = wxString("OpenCPN " + short_version_name);
+  wxString myframe_window_title = wxString("SuperCPN " + short_version_name);
 
   if (g_bportable) {
     myframe_window_title += _(" -- [Portable(-p) executing from ");
@@ -1687,7 +1701,7 @@ void MyApp::BuildMainFrame() {
   //     gFrame->ShowTides( g_bShowTide );
   //     gFrame->ShowCurrents( g_bShowCurrent );
 
-  //    wxLogMessage( wxString::Format("OpenCPN Initialized in %ld ms.",
+  //    wxLogMessage( wxString::Format("SuperCPN Initialized in %ld ms.",
   //    init_sw.Time() ) );
 }
 

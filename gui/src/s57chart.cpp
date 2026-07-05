@@ -3871,7 +3871,7 @@ int s57chart::ValidateAndCountUpdates(const wxFileName file000,
                 NULL,
                 _("S57 Cell Update chain incomplete.\nENC features may be "
                   "incomplete or inaccurate.\nCheck the logfile for details."),
-                _("OpenCPN Create SENC Warning"), wxOK | wxICON_EXCLAMATION,
+                _("SuperCPN Create SENC Warning"), wxOK | wxICON_EXCLAMATION,
                 30);
             chain_broken_mssage_shown = true;
           }

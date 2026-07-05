@@ -32,6 +32,7 @@
 #include "toolbar.h"
 
 #include "model/ais_state_vars.h"
+#include "model/boat_profile_service.h"
 #include "model/config_vars.h"
 #include "model/gui_vars.h"
 #include "model/idents.h"
@@ -159,6 +160,8 @@ ocpnFloatingToolbarDialog::ocpnFloatingToolbarDialog(wxWindow *parent,
                                                      ToolbarDlgCallbacks tdc)
     : m_callbacks(tdc) {
   m_pparent = parent;
+  m_profileChoice = nullptr;
+  m_profileListenerId = 0;
   m_ptoolbar = NULL;
 
   m_opacity = 255;
@@ -207,9 +210,34 @@ ocpnFloatingToolbarDialog::ocpnFloatingToolbarDialog(wxWindow *parent,
 
   m_bsubmerged = false;
   m_benableSubmerge = true;
+
+#ifndef __ANDROID__
+  if (m_pparent && m_orient == wxTB_VERTICAL) {
+    m_profileChoice = new wxChoice(m_pparent, wxID_ANY);
+    m_profileChoice->SetToolTip(_("Active Boat Profile"));
+    m_profileChoice->SetMinSize(wxSize(wxRound(170 * m_sizefactor), -1));
+    m_profileChoice->Connect(
+        wxEVT_COMMAND_CHOICE_SELECTED,
+        wxCommandEventHandler(ocpnFloatingToolbarDialog::OnBoatProfileChoice),
+        nullptr, this);
+    m_profileListenerId = BoatProfileService::Get().AddListener(
+        [this](const BoatProfile*) { RefreshBoatProfileChoice(); });
+    RefreshBoatProfileChoice();
+  }
+#endif
 }
 
 ocpnFloatingToolbarDialog::~ocpnFloatingToolbarDialog() {
+  if (m_profileListenerId)
+    BoatProfileService::Get().RemoveListener(m_profileListenerId);
+  if (m_profileChoice) {
+    m_profileChoice->Disconnect(
+        wxEVT_COMMAND_CHOICE_SELECTED,
+        wxCommandEventHandler(ocpnFloatingToolbarDialog::OnBoatProfileChoice),
+        nullptr, this);
+    m_profileChoice->Destroy();
+    m_profileChoice = nullptr;
+  }
   delete m_FloatingToolbarConfigMenu;
 
   DestroyToolBar();
@@ -360,6 +388,11 @@ void ocpnFloatingToolbarDialog::SetColorScheme(ColorScheme cs) {
     m_ptoolbar->SetToggledBackgroundColour(GetGlobalColor("GREY1"));
     m_ptoolbar->SetColorScheme(cs);
   }
+  if (m_profileChoice) {
+    m_profileChoice->SetBackgroundColour(GetGlobalColor("GREY3"));
+    m_profileChoice->SetForegroundColour(GetGlobalColor("DILG1"));
+    m_profileChoice->Refresh();
+  }
 }
 
 wxSize ocpnFloatingToolbarDialog::GetToolSize() {
@@ -416,11 +449,29 @@ void ocpnFloatingToolbarDialog::SetGeometry(bool bAvoid, wxRect rectAvoid) {
     }
 
     if (m_orient == wxTB_VERTICAL)
-      m_ptoolbar->SetMaxRowsCols(max_rows, 100);
+      m_ptoolbar->SetMaxRowsCols(32000, 1);
     else
       m_ptoolbar->SetMaxRowsCols(100, max_cols);
+    if (m_orient == wxTB_VERTICAL) {
+      int viewport_height = 0;
+      if (m_pparent) {
+        viewport_height = m_pparent->GetClientSize().y - m_dock_min_y -
+                          m_auxOffsetY - (2 * GetFloatingInset());
+      }
+      if (viewport_height <= 0) viewport_height = tool_size.y * max_rows;
+      m_ptoolbar->SetViewportHeight(viewport_height);
+    }
     m_ptoolbar->SetSizeFactor(m_sizefactor);
+    m_toolbar_image.Destroy();
   }
+}
+
+int ocpnFloatingToolbarDialog::GetFloatingInset() const {
+  if (m_orient != wxTB_VERTICAL || !m_style) return 0;
+
+  wxSize tool_size = m_style->GetToolSize();
+  int inset = wxRound(wxMin(tool_size.x, tool_size.y) * m_sizefactor * 0.25);
+  return wxMax(6, inset);
 }
 
 void ocpnFloatingToolbarDialog::SetDefaultPosition() {
@@ -445,9 +496,11 @@ void ocpnFloatingToolbarDialog::SetDefaultPosition() {
     m_position.y = wxMax(m_dock_min_y, m_position.y);
 
     m_position.y += m_auxOffsetY;
+    m_position.y += GetFloatingInset();
 
     g_maintoolbar_x = m_position.x;
     g_maintoolbar_y = m_position.y;
+    PositionBoatProfileChoice();
 
     // take care of left docked instrument windows and don't blast the main
     // toolbar on top of them, hinding instruments this positions the main
@@ -515,6 +568,7 @@ void ocpnFloatingToolbarDialog::RefreshToolbar() {
   if (m_ptoolbar) {
     if (m_ptoolbar->IsDirty()) {
       Realize();
+      PositionBoatProfileChoice();
       top_frame::Get()->GetAbstractPrimaryCanvas()->Refresh();
     }
   }
@@ -543,11 +597,13 @@ void ocpnFloatingToolbarDialog::Realize() {
     m_ptoolbar->Realize();
     m_ptoolbar->CreateBitmap();
     m_toolbar_image.Destroy();
+    PositionBoatProfileChoice();
   }
 }
 
 void ocpnFloatingToolbarDialog::DrawDC(ocpnDC &dc, double displayScale) {
   if (m_ptoolbar) {
+    PositionBoatProfileChoice();
     m_ptoolbar->CreateBitmap();
     if (m_ptoolbar->GetBitmap().IsOk()) {
       dc.DrawBitmap(m_ptoolbar->GetBitmap(), m_position.x, m_position.y, false);
@@ -561,6 +617,7 @@ void ocpnFloatingToolbarDialog::DrawGL(ocpnDC &gldc, double displayScale) {
 
 #ifdef ocpnUSE_GL
   if (!m_ptoolbar) return;
+  PositionBoatProfileChoice();
 
   wxColour backColor = GetGlobalColor("GREY3");
   gldc.SetBrush(wxBrush(backColor));
@@ -707,6 +764,99 @@ ocpnToolBarSimple *ocpnFloatingToolbarDialog::CreateNewToolbar() {
   return m_ptoolbar;
 }
 
+void ocpnFloatingToolbarDialog::RefreshBoatProfileChoice() {
+  if (!m_profileChoice) return;
+
+  auto& service = BoatProfileService::Get();
+  service.EnsureActiveProfile(_("My Boat"));
+  const wxString active_id = service.GetActiveProfileId();
+
+  m_profileChoice->Freeze();
+  m_profileChoice->Clear();
+  m_profileChoiceIds.clear();
+
+  int active_index = wxNOT_FOUND;
+  for (const auto& profile : service.GetProfiles()) {
+    wxString label = profile.name;
+    if (label.empty()) label = _("Unnamed Boat");
+    m_profileChoice->Append(label);
+    m_profileChoiceIds.push_back(profile.id);
+    if (profile.id == active_id) active_index = m_profileChoice->GetCount() - 1;
+  }
+
+  m_profileChoice->Append(_("Manage Boat Profiles..."));
+  m_profileChoice->Append(_("Create New Boat Profile..."));
+  m_profileChoice->Append(_("Import from OpenCPN..."));
+
+  if (active_index != wxNOT_FOUND)
+    m_profileChoice->SetSelection(active_index);
+  else if (m_profileChoice->GetCount() > 0)
+    m_profileChoice->SetSelection(0);
+
+  m_profileChoice->Thaw();
+  PositionBoatProfileChoice();
+}
+
+void ocpnFloatingToolbarDialog::PositionBoatProfileChoice() {
+  if (!m_profileChoice || !m_pparent || !m_ptoolbar) return;
+  if (m_orient != wxTB_VERTICAL) {
+    m_profileChoice->Hide();
+    return;
+  }
+
+  const int gap = wxMax(6, wxRound(6 * m_sizefactor));
+  const int width = wxRound(180 * m_sizefactor);
+  const wxSize best = m_profileChoice->GetBestSize();
+  const int height = best.y > 0 ? best.y : wxRound(28 * m_sizefactor);
+  wxPoint pos(m_position.x + m_ptoolbar->m_maxWidth + gap, m_position.y);
+  wxSize parent_size = m_pparent->GetClientSize();
+  if (parent_size.x > 0) pos.x = wxMin(pos.x, parent_size.x - width - gap);
+  pos.x = wxMax(gap, pos.x);
+  m_profileChoice->SetSize(pos.x, pos.y, width, height);
+  m_profileChoice->Show();
+  m_profileChoice->Raise();
+}
+
+void ocpnFloatingToolbarDialog::OnBoatProfileChoice(wxCommandEvent &event) {
+  if (!m_profileChoice) return;
+
+  const int selection = m_profileChoice->GetSelection();
+  auto& service = BoatProfileService::Get();
+  wxString error;
+
+  if (selection >= 0 && selection < (int)m_profileChoiceIds.size()) {
+    if (!service.SetActiveProfile(m_profileChoiceIds[selection], &error)) {
+      wxMessageBox(error, _("Boat Profile"), wxOK | wxICON_WARNING,
+                   wxTheApp->GetTopWindow());
+    }
+    return;
+  }
+
+  const int action_index = selection - (int)m_profileChoiceIds.size();
+  if (action_index == 0) {
+    wxMessageBox(_("Boat Profile management is available from the active "
+                  "profile selector. Create a new profile here, or edit "
+                  "profiles from onboarding until the full manager is added."),
+                 _("Manage Boat Profiles"), wxOK | wxICON_INFORMATION,
+                 wxTheApp->GetTopWindow());
+  } else if (action_index == 1) {
+    BoatProfile profile = BoatProfileStore::CreateFromCurrentSettings(
+        wxString::Format(_("Boat %u"),
+                         (unsigned)service.GetProfiles().size() + 1));
+    if (service.AddProfile(profile, &error))
+      service.SetActiveProfile(profile.id, &error);
+    if (!error.empty())
+      wxMessageBox(error, _("Boat Profile"), wxOK | wxICON_WARNING,
+                   wxTheApp->GetTopWindow());
+  } else if (action_index == 2) {
+    wxMessageBox(_("No OpenCPN boat profile import source was found."),
+                 _("Import from OpenCPN"), wxOK | wxICON_INFORMATION,
+                 wxTheApp->GetTopWindow());
+  }
+
+  RefreshBoatProfileChoice();
+}
+
 void ocpnFloatingToolbarDialog::DestroyToolBar() {
   g_toolbarConfig = GetToolConfigString();
 
@@ -846,6 +996,9 @@ void ocpnToolBarSimple::Init() {
   m_last_plugin_down_id = -1;
   m_leftDown = false;
   m_nShowTools = 0;
+  m_scrollOffset = 0;
+  m_viewportHeight = 0;
+  m_contentHeight = 0;
   m_btooltip_show = false;
 #ifndef __ANDROID__
   EnableTooltips();
@@ -1159,11 +1312,17 @@ bool ocpnToolBarSimple::Realize() {
   if (lastTool && (m_LineCount > 1 || IsVertical()))
     lastTool->lastInLine = true;
 
+  m_contentHeight = m_maxHeight;
+
   if (!IsVertical()) {
     m_maxHeight += toolSize.y;
     m_maxHeight += m_style->GetBottomMargin();
   } else {
-    m_maxWidth += toolSize.x;
+    m_contentHeight += m_style->GetBottomMargin() * m_sizefactor;
+    m_maxWidth = GetSidebarWidth(toolSize.x);
+    m_maxHeight = m_viewportHeight > 0 ? m_viewportHeight : m_contentHeight;
+    if (m_maxHeight <= 0) m_maxHeight = m_contentHeight;
+    m_scrollOffset = wxMin(m_scrollOffset, GetMaxScrollOffset());
     m_maxWidth += m_style->GetRightMargin() * m_sizefactor;
   }
 
@@ -1184,6 +1343,12 @@ wxBitmap &ocpnToolBarSimple::CreateBitmap(double display_scale) {
   mdc.SelectObject(bm);
   mdc.SetBackground(wxBrush(GetBackgroundColour()));
   mdc.Clear();
+  mdc.SetClippingRegion(0, 0, width, height);
+
+  wxFont labelFont = *wxNORMAL_FONT;
+  labelFont.SetPointSize(wxMax(8, labelFont.GetPointSize()));
+  mdc.SetFont(labelFont);
+  mdc.SetTextForeground(GetSidebarLabelColour());
 
   //  In a loop, draw the tools
   for (wxToolBarToolsList::compatibility_iterator node = m_tools.GetFirst();
@@ -1194,11 +1359,35 @@ wxBitmap &ocpnToolBarSimple::CreateBitmap(double display_scale) {
     CreateToolBitmap(tool);
 
     if (tools->m_activeBitmap.IsOk()) {
-      mdc.DrawBitmap(tools->m_activeBitmap, tools->m_x, tools->m_y, false);
+      int drawY = tools->m_y;
+      if (IsVertical()) drawY -= m_scrollOffset;
+
+      if (!IsVertical() ||
+          wxRect(0, drawY, width, tools->GetHeight())
+              .Intersects(wxRect(0, 0, width, height))) {
+        mdc.DrawBitmap(tools->m_activeBitmap, tools->m_x, drawY, false);
+
+        if (IsVertical() && tools->IsButton()) {
+          wxString label = GetDisplayLabel(tools);
+          if (!label.IsEmpty()) {
+            int labelX = tools->m_x + tools->GetWidth() + GetSidebarLabelGap();
+            int labelMaxWidth = width - labelX - GetSidebarLabelPadding();
+            if (labelMaxWidth > 0) {
+              wxString displayLabel = wxControl::Ellipsize(
+                  label, mdc, wxELLIPSIZE_END, labelMaxWidth);
+              wxCoord textHeight;
+              mdc.GetTextExtent(displayLabel, NULL, &textHeight);
+              int labelY = drawY + (tools->GetHeight() - textHeight) / 2;
+              mdc.DrawText(displayLabel, labelX, labelY);
+            }
+          }
+        }
+      }
     }
     int yyp = 5;
   }
 
+  mdc.DestroyClippingRegion();
   mdc.SelectObject(wxNullBitmap);
 
   m_bitmap = bm;
@@ -1218,6 +1407,7 @@ void ocpnToolBarSimple::OnToolTipTimerEvent(wxTimerEvent &event) {
       if (s.Len()) {
         // Calculate tooltip position relative to the tool
         wxPoint pos_in_toolbar(m_last_ro_tool->m_x, m_last_ro_tool->m_y);
+        if (IsVertical()) pos_in_toolbar.y -= m_scrollOffset;
         pos_in_toolbar.x += m_last_ro_tool->m_width + 2;
 
         wxPoint screenPosition =
@@ -1257,6 +1447,18 @@ bool ocpnToolBarSimple::OnMouseEvent(wxMouseEvent &event, wxPoint &position) {
   }
 
   m_parentContainer->RefreshFadeTimer();
+
+  if (IsVertical() && event.GetWheelRotation()) {
+    int wheelDelta = event.GetWheelDelta();
+    if (wheelDelta == 0) wheelDelta = 120;
+    int rowDelta = GetToolSize().y + m_style->GetToolSeparation();
+    int delta = -event.GetWheelRotation() * rowDelta / wheelDelta;
+    if (ScrollBy(delta)) {
+      m_parentContainer->Realize();
+      top_frame::Get()->GetAbstractPrimaryCanvas()->Refresh(true);
+    }
+    return true;
+  }
 
   ocpnToolBarTool *tool =
       (ocpnToolBarTool *)FindToolForPosition(x - position.x, y - position.y);
@@ -1640,12 +1842,14 @@ void ocpnToolBarSimple::DrawTool(wxDC &dc, wxToolBarToolBase *toolBase) {
 
 wxToolBarToolBase *ocpnToolBarSimple::FindToolForPosition(wxCoord x,
                                                           wxCoord y) {
+  if (IsVertical()) y += m_scrollOffset;
+
   wxToolBarToolsList::compatibility_iterator node = m_tools.GetFirst();
   while (node) {
     ocpnToolBarTool *tool = (ocpnToolBarTool *)node->GetData();
+    wxCoord hitWidth = IsVertical() ? m_maxWidth : tool->GetWidth();
     if ((x >= tool->m_x) && (y >= tool->m_y) &&
-        (x < (tool->m_x + tool->GetWidth())) &&
-        (y < (tool->m_y + tool->GetHeight()))) {
+        (x < (tool->m_x + hitWidth)) && (y < (tool->m_y + tool->GetHeight()))) {
       return tool;
     }
 
@@ -1691,6 +1895,115 @@ void ocpnToolBarSimple::DoToggleTool(wxToolBarToolBase *tool,
   ocpnToolBarTool *t = (ocpnToolBarTool *)tool;
   t->bitmapOK = false;
   SetDirty(true);
+}
+
+void ocpnToolBarSimple::SetViewportHeight(int height) {
+  m_viewportHeight = wxMax(0, height);
+  m_scrollOffset = wxMin(m_scrollOffset, GetMaxScrollOffset());
+  m_bitmap = wxNullBitmap;
+}
+
+wxCoord ocpnToolBarSimple::GetSidebarWidth(wxCoord toolWidth) const {
+  return toolWidth + GetSidebarLabelGap() + GetSidebarLabelPadding() +
+         wxRound(128 * m_sizefactor);
+}
+
+wxCoord ocpnToolBarSimple::GetSidebarLabelGap() const {
+  return wxMax(8, wxRound(10 * m_sizefactor));
+}
+
+wxCoord ocpnToolBarSimple::GetSidebarLabelPadding() const {
+  return wxMax(10, wxRound(12 * m_sizefactor));
+}
+
+wxColour ocpnToolBarSimple::GetSidebarLabelColour() const {
+  return wxColour(196, 201, 204);
+}
+
+static wxString CleanToolbarLabel(wxString label) {
+  if (label.IsEmpty()) return label;
+
+  int tab = label.Find('\t');
+  if (tab != wxNOT_FOUND) label = label.Left(tab);
+
+  int shortcut = label.Find(" (");
+  if (shortcut != wxNOT_FOUND) label = label.Left(shortcut);
+
+  label.Trim(true);
+  label.Trim(false);
+  return label;
+}
+
+wxString ocpnToolBarSimple::GetPluginDisplayLabel(ocpnToolBarTool *tool) const {
+  if (g_pi_manager) {
+    ArrayOfPlugInToolbarTools tool_array =
+        g_pi_manager->GetPluginToolbarToolArray();
+    for (unsigned int i = 0; i < tool_array.GetCount(); i++) {
+      PlugInToolbarToolContainer *pttc = tool_array[i];
+      if (pttc && tool->GetId() == pttc->id) {
+        wxString label = CleanToolbarLabel(pttc->label);
+        if (!label.IsEmpty()) return label;
+
+        label = CleanToolbarLabel(pttc->shortHelp);
+        if (!label.IsEmpty()) return label;
+      }
+    }
+
+    wxString owner = CleanToolbarLabel(
+        g_pi_manager->GetToolOwnerCommonName(tool->GetId()));
+    if (!owner.IsEmpty()) return owner;
+  }
+
+  return _("Plugin");
+}
+
+wxString ocpnToolBarSimple::GetDisplayLabel(ocpnToolBarTool *tool) const {
+  if (!tool) return wxEmptyString;
+  if (tool->isPluginTool) return GetPluginDisplayLabel(tool);
+
+  switch (tool->GetId()) {
+    case ID_MASTERTOGGLE:
+      return _("Menu");
+    case ID_SETTINGS:
+      return _("Settings");
+    case ID_MENU_ROUTE_NEW:
+      return _("Create Route");
+    case ID_ROUTEMANAGER:
+      return _("Route & Mark Manager");
+    case ID_TRACK:
+      return _("Tracking");
+    case ID_COLSCHEME:
+      return _("Color Scheme");
+    case ID_PRINT:
+      return _("Print");
+    case ID_ABOUT:
+      return _("About");
+    case ID_MOB:
+      return _("MOB");
+    default:
+      break;
+  }
+
+  wxString label = CleanToolbarLabel(tool->GetShortHelp());
+  if (!label.IsEmpty()) return label;
+
+  label = CleanToolbarLabel(tool->GetLabel());
+  if (!label.IsEmpty()) return label;
+
+  return _("Tool");
+}
+
+int ocpnToolBarSimple::GetMaxScrollOffset() const {
+  return wxMax(0, m_contentHeight - m_maxHeight);
+}
+
+bool ocpnToolBarSimple::ScrollBy(int delta) {
+  int newOffset = wxMin(GetMaxScrollOffset(), wxMax(0, m_scrollOffset + delta));
+  if (newOffset == m_scrollOffset) return false;
+
+  m_scrollOffset = newOffset;
+  m_bitmap = wxNullBitmap;
+  return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -1962,7 +2275,7 @@ void ocpnToolBarSimple::OnRightClick(int id, long WXUNUSED(x),
   if (m_parentContainer) {
     if (m_parentContainer->m_FloatingToolbarConfigMenu) {
       ToolbarChoicesDialog *dlg =
-          new ToolbarChoicesDialog(NULL, m_parentContainer, -1, "OpenCPN",
+          new ToolbarChoicesDialog(NULL, m_parentContainer, -1, "SuperCPN",
                                    wxDefaultPosition, wxSize(100, 100));
       int rc = dlg->ShowModal();
       delete dlg;
@@ -2076,7 +2389,7 @@ void ocpnToolBarSimple::SetToolBitmapsSVG(int id, wxString fileSVGNormal,
 //-------------------------------------------------------------------------------------
 
 ToolbarMOBDialog::ToolbarMOBDialog(wxWindow *parent)
-    : wxDialog(parent, wxID_ANY, _("OpenCPN Alert"), wxDefaultPosition,
+    : wxDialog(parent, wxID_ANY, _("SuperCPN Alert"), wxDefaultPosition,
                wxSize(250, 230)) {
   wxBoxSizer *topSizer = new wxBoxSizer(wxVERTICAL);
 

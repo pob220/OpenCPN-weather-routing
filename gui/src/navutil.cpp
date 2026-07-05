@@ -2853,7 +2853,7 @@ void ImportFileArray(const wxArrayString &file_array, bool islayer,
               wxString::Format("%d " + _("duplicate waypoints detected "
                                          "during import and ignored."),
                                wpt_dups),
-              _("OpenCPN Info"), wxICON_INFORMATION | wxOK, 10);
+              _("SuperCPN Info"), wxICON_INFORMATION | wxOK, 10);
         }
 #endif
       }

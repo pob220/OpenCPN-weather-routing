@@ -1170,7 +1170,7 @@ int Osenc::ingestCell(OGRS57DataSource *poS57DS, const wxString &FullPath000,
             NULL,
             _("S57 Cell Update failed.\nENC features may be incomplete or "
               "inaccurate.\n\nCheck the logfile for details."),
-            _("OpenCPN Create SENC Warning"), wxOK | wxICON_EXCLAMATION, 5);
+            _("SuperCPN Create SENC Warning"), wxOK | wxICON_EXCLAMATION, 5);
       }
     } else {  // no updates applied.
       if (!m_NoErrDialog)
@@ -1178,7 +1178,7 @@ int Osenc::ingestCell(OGRS57DataSource *poS57DS, const wxString &FullPath000,
                        _("S57 Cell Update failed.\nNo updates could be "
                          "applied.\nENC features may be incomplete or "
                          "inaccurate.\n\nCheck the logfile for details."),
-                       _("OpenCPN Create SENC Warning"),
+                       _("SuperCPN Create SENC Warning"),
                        wxOK | wxICON_EXCLAMATION, 5);
     }
   }
@@ -1668,7 +1668,7 @@ int Osenc::createSenc200(const wxString &FullPath000,
   wxString Message = SENCfile.GetFullPath();
   Message.Append("...Ingesting");
 
-  wxString Title(_("OpenCPN S57 SENC File Create..."));
+  wxString Title(_("SuperCPN S57 SENC File Create..."));
   Title.append(SENCfile.GetFullPath());
 
 #if wxUSE_PROGRESSDLG

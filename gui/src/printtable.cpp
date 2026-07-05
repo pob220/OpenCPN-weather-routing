@@ -19,7 +19,7 @@
 /**
  * \file
  *
- *  Implement printtable.h -- OpenCPN Route table printout
+ *  Implement printtable.h -- SuperCPN Route table printout
  */
 
 #include <iostream>

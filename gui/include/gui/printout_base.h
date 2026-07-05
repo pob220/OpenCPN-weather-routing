@@ -34,7 +34,7 @@
  */
 class BasePrintout : public wxPrintout {
 public:
-  BasePrintout(const std::string &title = _("OpenCPN print").ToStdString());
+  BasePrintout(const std::string &title = _("SuperCPN print").ToStdString());
 
   // Methods required by wxPrintout.
   bool HasPage(int page) override;

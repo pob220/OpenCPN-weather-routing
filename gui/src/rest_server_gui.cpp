@@ -39,7 +39,7 @@
 
 static wxDialog* DisplayDlg(const std::string& msg, const std::string& txt1) {
   auto dlg = new PINCreateDialog(
-      wxTheApp->GetTopWindow(), wxID_ANY, _("OpenCPN Server Message"), "",
+      wxTheApp->GetTopWindow(), wxID_ANY, _("SuperCPN Server Message"), "",
       wxDefaultPosition, wxDefaultSize, SYMBOL_STG_STYLE);
   dlg->SetMessage(msg);
   dlg->SetText1Message(txt1);
@@ -57,7 +57,7 @@ static void UpdateRouteMgr() {
 
 static AcceptObjectDlgResult RunAcceptObjectDlg(const wxString& msg,
                                                 const wxString& check1msg) {
-  AcceptObjectDialog dlg(NULL, _("OpenCPN Server Message"), msg, check1msg);
+  AcceptObjectDialog dlg(NULL, _("SuperCPN Server Message"), msg, check1msg);
   int result = dlg.ShowModal();
   bool check1 = dlg.GetCheck1Value();
   return AcceptObjectDlgResult(result, check1);
@@ -230,7 +230,7 @@ PINCreateDialog::~PINCreateDialog() {
 wxDialog* PINCreateDialog::Initiate(const std::string& msg,
                                     const std::string& text1) {
   auto dlg = new PINCreateDialog(
-      wxTheApp->GetTopWindow(), wxID_ANY, _("OpenCPN Server Message"), "",
+      wxTheApp->GetTopWindow(), wxID_ANY, _("SuperCPN Server Message"), "",
       wxDefaultPosition, wxDefaultSize, SYMBOL_STG_STYLE);
   dlg->SetMessage(msg);
   dlg->SetText1Message(text1);

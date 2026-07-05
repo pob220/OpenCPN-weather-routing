@@ -199,7 +199,7 @@ wxBitmap *grib_pi::GetPlugInBitmap() { return &m_panelBitmap; }
 
 wxString grib_pi::GetCommonName() { return "GRIB"; }
 
-wxString grib_pi::GetShortDescription() { return _("GRIB PlugIn for OpenCPN"); }
+wxString grib_pi::GetShortDescription() { return _("GRIB PlugIn for SuperCPN"); }
 
 wxString grib_pi::GetLongDescription() {
   return _(

@@ -102,7 +102,7 @@ protected:
 
 public:
   AboutFrame(wxWindow* parent, wxWindowID id = wxID_ANY,
-             const wxString& title = _("About OpenCPN"),
+             const wxString& title = _("About SuperCPN"),
              const wxPoint& pos = wxDefaultPosition,
              const wxSize& size = wxSize(500, 300),
              long style = wxCAPTION | wxCLOSE_BOX | wxFRAME_FLOAT_ON_PARENT |

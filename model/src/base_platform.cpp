@@ -103,6 +103,18 @@ BasePlatform* g_BasePlatform;
 PlatSpec android_plat_spc;
 #endif
 
+static wxString AppPackageName() {
+  return wxString::FromUTF8(OCPN_APP_PACKAGE_NAME);
+}
+
+static wxString AppConfigFileName(const wxString& extension) {
+  return AppPackageName() + extension;
+}
+
+static wxString AppFlatpakId() {
+  return "org.supercpn.SuperCPN";
+}
+
 static inline bool IsWindows() {
   return wxPlatformInfo::Get().GetOperatingSystemId() & wxOS_WINDOWS;
 }
@@ -112,7 +124,7 @@ static bool checkIfFlatpacked() {
   if (!wxGetEnv("FLATPAK_ID", &id)) {
     return false;
   }
-  return id == "org.opencpn.OpenCPN";
+  return id == AppFlatpakId();
 }
 
 static wxString ExpandPaths(wxString paths, AbstractPlatform* platform);
@@ -131,8 +143,9 @@ static wxString GetLinuxDataPath() {
     if (dir.EndsWith("/")) {
       dir = dir.SubString(0, dir.length() - 1);
     }
-    if (!dir.EndsWith("/opencpn/plugins")) {
-      dir += "/opencpn/plugins";
+    wxString packagePlugins = "/" + AppPackageName() + "/plugins";
+    if (!dir.EndsWith(packagePlugins)) {
+      dir += packagePlugins;
     }
     s += dir + (tokens.HasMoreTokens() ? ";" : "");
   }
@@ -345,15 +358,17 @@ wxString& AbstractPlatform::DefaultPrivateDataDir() {
       config_home = getenv("XDG_CONFIG_HOME");
     } else {
       config_home = getenv("HOME");
-      config_home += "/.var/app/org.opencpn.OpenCPN/config";
+      config_home += "/.var/app/";
+      config_home += AppFlatpakId().ToStdString();
+      config_home += "/config";
     }
-    m_PrivateDataDir = config_home + "/opencpn";
+    m_PrivateDataDir = config_home + "/" + OCPN_APP_PACKAGE_NAME;
 
 #elif defined __WXOSX__
     m_PrivateDataDir =
         std_path.GetUserConfigDir();  // should be ~/Library/Preferences
     appendOSDirSlash(&m_PrivateDataDir);
-    m_PrivateDataDir.Append("opencpn");
+    m_PrivateDataDir.Append(AppPackageName());
 #else
     if (getenv("OCPN_TEST_HOMEDIR"))
       m_PrivateDataDir = getenv("OCPN_TEST_HOMEDIR");
@@ -426,7 +441,7 @@ wxString AbstractPlatform::GetWinPluginBaseDir() {
   }
   wxFileName path(winPluginDir);
   path.Normalize();
-  winPluginDir = path.GetFullPath() + "\\opencpn\\plugins";
+  winPluginDir = path.GetFullPath() + "\\" + AppPackageName() + "\\plugins";
   wxLogMessage("Using private plugin dir: %s", winPluginDir);
   return winPluginDir;
 }
@@ -440,6 +455,13 @@ wxString& AbstractPlatform::GetPluginDir() {
     // Mac:     appname.app/Contents/PlugIns
 #ifdef __WXMSW__
     m_PluginsDir += "\\plugins";  // Windows: {exe dir}/plugins
+#elif (defined(__unix__) || defined(__unix) || defined(__linux__)) && \
+    !defined(__WXOSX__)
+    m_PluginsDir = wxString(PREFIX, wxConvUTF8);
+    appendOSDirSlash(&m_PluginsDir);
+    m_PluginsDir += "lib";
+    appendOSDirSlash(&m_PluginsDir);
+    m_PluginsDir += AppPackageName();
 #endif
     if (g_bportable) {
       m_PluginsDir = GetHomeDir();
@@ -607,45 +629,46 @@ wxString& AbstractPlatform::GetConfigFileName() {
     wxStandardPaths& std_path = GetStdPaths();
 
 #ifdef __WXMSW__
-    m_config_file_name = "opencpn.ini";
+    m_config_file_name = AppConfigFileName(".ini");
     m_config_file_name.Prepend(GetHomeDir());
 
 #elif defined __WXOSX__
     m_config_file_name =
         std_path.GetUserConfigDir();  // should be ~/Library/Preferences
     appendOSDirSlash(&m_config_file_name);
-    m_config_file_name.Append("opencpn");
+    m_config_file_name.Append(AppPackageName());
     appendOSDirSlash(&m_config_file_name);
-    m_config_file_name.Append("opencpn.ini");
+    m_config_file_name.Append(AppConfigFileName(".ini"));
 #elif defined FLATPAK
     m_config_file_name = GetPrivateDataDir();
-    m_config_file_name.Append("/opencpn.conf");
-    // Usually ~/.var/app/org.opencpn.OpenCPN/config/opencpn.conf
+    m_config_file_name.Append("/");
+    m_config_file_name.Append(AppConfigFileName(".conf"));
 #else
     m_config_file_name = std_path.GetUserDataDir();  // should be ~/.opencpn
     appendOSDirSlash(&m_config_file_name);
-    m_config_file_name.Append("opencpn.conf");
+    m_config_file_name.Append(AppConfigFileName(".conf"));
 #endif
 
     if (g_bportable) {
       m_config_file_name = GetHomeDir();
 #ifdef __WXMSW__
-      m_config_file_name += "opencpn.ini";
+      m_config_file_name += AppConfigFileName(".ini");
 #elif defined __WXOSX__
-      m_config_file_name += "opencpn.ini";
+      m_config_file_name += AppConfigFileName(".ini");
 #else
-      m_config_file_name += "opencpn.conf";
+      m_config_file_name += AppConfigFileName(".conf");
 #endif
     }
 
 #ifdef __ANDROID__
     m_config_file_name = androidGetPrivateDir();
     appendOSDirSlash(&m_config_file_name);
-    m_config_file_name += "opencpn.conf";
+    m_config_file_name += AppConfigFileName(".conf");
 #endif
     if (!g_configdir.empty()) {
       m_config_file_name = g_configdir;
-      m_config_file_name.Append("/opencpn.conf");
+      m_config_file_name.Append("/");
+      m_config_file_name.Append(AppConfigFileName(".conf"));
     }
   }
   return m_config_file_name;
@@ -688,7 +711,7 @@ bool BasePlatform::InitializeLogFile() {
     }
   }
 
-  mlog_file.Append("opencpn.log");
+  mlog_file.Append(AppConfigFileName(".log"));
   wxString logit = mlog_file;
 
 #ifdef __ANDROID__
@@ -703,7 +726,9 @@ bool BasePlatform::InitializeLogFile() {
       oldlog.Append(".log");
       //  Defer the showing of this messagebox until the system locale is
       //  established.
-      large_log_message = ("Old log will be moved to opencpn.log.log");
+      large_log_message =
+          wxString::Format("Old log will be moved to %s.log",
+                           AppConfigFileName(".log"));
       ::wxRenameFile(mlog_file, oldlog);
     }
   }
@@ -750,7 +775,11 @@ wxString AbstractPlatform::GetPluginDataPath() {
 #else
   auto const osSystemId = wxPlatformInfo::Get().GetOperatingSystemId();
   if (isFlatpacked()) {
-    dirs = "~/.var/app/org.opencpn.OpenCPN/data/opencpn/plugins";
+    dirs = "~/.var/app/";
+    dirs += AppFlatpakId();
+    dirs += "/data/";
+    dirs += AppPackageName();
+    dirs += "/plugins";
   } else if (osSystemId & wxOS_UNIX_LINUX) {
     dirs = GetLinuxDataPath();
   } else if (osSystemId & wxOS_WINDOWS) {

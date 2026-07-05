@@ -1,6 +1,6 @@
 # SuperCPN
 
-SuperCPN is a pob220 fork of OpenCPN focused on a cleaner helm UI and tighter
+SuperCPN is a fork of OpenCPN focused on a cleaner helm UI and tighter
 weather/current planning workflow. It keeps OpenCPN plugin compatibility where
 possible, but uses separate SuperCPN branding, commands, data directories, and
 desktop metadata.

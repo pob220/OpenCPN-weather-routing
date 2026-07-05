@@ -1,35 +1,153 @@
-----------------------------------------------------------------------
-1.  Overview
-----------------------------------------------------------------------
+# SuperCPN
 
-a.  Opencpn was built with the following objectives in mind.
+SuperCPN is a pob220 fork of OpenCPN focused on a cleaner helm UI and tighter
+weather/current planning workflow. It keeps OpenCPN plugin compatibility where
+possible, but uses separate SuperCPN branding, commands, data directories, and
+desktop metadata.
 
-    i.   Intended use as primary navigation interface for vessels 
-         with full-time helm-visible navigational suites.
-         Other tools may be better for offline route planning, tide
-         and current prediction, online logging, etc.
-    ii.  Quick startup and shutdown.
-    iii. Those and only those toolbar buttons really needed for
-         daily operation.
-    iv.  Portability, thus wxWidgets core components.  Currently
-         tested and in production use on Windows, MacOS, Linux
-         and Android.
-    v.   Conventional ( i.e. popular and modern ) chart format
-         support.  In the real world, this means BSB format raster
-         charts, and S57ENC format vector charts.
+## What Changed From OpenCPN
 
+- **SuperCPN branding**: app name, launcher, command names, desktop metadata,
+  installed data paths, and local configuration paths are separated from
+  OpenCPN so both applications can live on the same machine.
+- **Left sidebar UI**: the old narrow icon-only toolbar has been changed into a
+  fixed-size left sidebar with icon and text labels. It stays docked to the
+  left, does not grow with extra tools, and scrolls when there are more tools
+  than fit vertically.
+- **Boat Profile selector**: the active Boat Profile is visible beside the main
+  sidebar. Selecting it opens a compact menu of saved profiles, plus profile
+  management actions.
+- **Boat Profiles**: SuperCPN has first-class Boat Profiles for vessel
+  dimensions, cruising speed, max speed, planning duration, current step, grid
+  spacing, current provider, and model/data directory defaults.
+- **Weather/current routing integration**: the bundled GRIB/current planning
+  flow reads the active Boat Profile directly. Current-GRIB defaults and
+  metadata are derived from the selected vessel profile instead of generic
+  defaults.
+- **Onboarding improvements**: first-run setup now includes Boat Profile
+  creation so SuperCPN has useful vessel data before weather/current planning.
+- **OpenCPN import placement**: OpenCPN import is exposed from onboarding and
+  Display > General settings, not from the quick profile selector.
 
+## Build On A Regular Linux PC
 
-        And, of course, opencpn is all GPL'ed (or equivalent)
-                        Open Source code.
+These commands are intended for Debian, Ubuntu, Linux Mint, Raspberry Pi OS, or
+similar apt-based systems.
 
+Install build tools and dependencies:
 
-    Personal Note:
-    Opencpn is in primary daily use as the navigation package aboard
-    M/V Dyad, a 48 ft trawler yacht cruising from Newfoundland to the
-    Bahamas yearly.
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential cmake git gettext pkg-config \
+  libarchive-dev libbz2-dev libcurl4-openssl-dev libdrm-dev libelf-dev \
+  libexif-dev libgdk-pixbuf-2.0-dev libglew-dev libgtk-3-dev \
+  liblz4-dev liblzma-dev libpango1.0-dev libshp-dev libsqlite3-dev \
+  libssl-dev libtinyxml-dev libudev-dev libusb-1.0-0-dev \
+  libwxgtk3.2-dev libwxgtk-webview3.2-dev libwxsvg-dev \
+  portaudio19-dev python-is-python3 python3-dbus python3-gi rapidjson-dev
+```
 
-    Our thanks go to MAXCDN for providing a CDN network delivering
-    the OpenCPN downloads worldwide.
+If your distro does not provide wxWidgets 3.2 packages, use the equivalent
+`libwxgtk3.0-gtk3-dev` and `libwxgtk-webview3.0-gtk3-dev` packages.
 
-    OpenCPN is distributed using a multitude of licenses, see LICENSING.
+Configure and build:
+
+```bash
+git clone https://github.com/pob220/SuperCPN.git
+cd SuperCPN
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+cmake --build build -j"$(nproc)"
+```
+
+Run from the build tree:
+
+```bash
+./build/supercpn
+```
+
+Install locally:
+
+```bash
+cmake --build build --target install -j"$(nproc)"
+```
+
+After install, launch with:
+
+```bash
+supercpn
+```
+
+## Raspberry Pi Build
+
+For a Raspberry Pi 4 or Pi 5 running Raspberry Pi OS 64-bit, the regular Linux
+instructions usually work. The Pi-optimized approach below uses fewer parallel
+jobs and disables OpenGL if the graphics stack is unstable.
+
+Install dependencies:
+
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential cmake git gettext pkg-config \
+  libarchive-dev libbz2-dev libcurl4-openssl-dev libdrm-dev libelf-dev \
+  libexif-dev libgdk-pixbuf-2.0-dev libgtk-3-dev \
+  liblz4-dev liblzma-dev libpango1.0-dev libshp-dev libsqlite3-dev \
+  libssl-dev libtinyxml-dev libudev-dev libusb-1.0-0-dev \
+  libwxgtk3.2-dev libwxgtk-webview3.2-dev libwxsvg-dev \
+  portaudio19-dev python-is-python3 python3-dbus python3-gi rapidjson-dev
+```
+
+Configure a lighter Pi build:
+
+```bash
+git clone https://github.com/pob220/SuperCPN.git
+cd SuperCPN
+cmake -S . -B build-pi \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$HOME/.local" \
+  -DOCPN_USE_GL=OFF
+cmake --build build-pi -j2
+```
+
+Install on the Pi:
+
+```bash
+cmake --build build-pi --target install -j2
+```
+
+If your Pi has good OpenGL support and you want hardware acceleration, remove
+`-DOCPN_USE_GL=OFF` and rebuild:
+
+```bash
+cmake -S . -B build-pi-gl \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+cmake --build build-pi-gl -j2
+```
+
+## Tests
+
+Run the focused Boat Profile tests:
+
+```bash
+./build/test/tests --gtest_filter='BoatProfile.*'
+```
+
+Run all available tests:
+
+```bash
+cmake --build build --target run-tests
+```
+
+## Notes
+
+- SuperCPN intentionally keeps compatibility-sensitive OpenCPN plugin APIs and
+  identifiers where changing them would break normal plugin behavior.
+- Some bundled plugin translation files still use upstream OpenCPN plugin
+  message catalog names for compatibility.
+- OpenCPN profile import currently has UI entry points in onboarding and
+  Display > General settings; the import backend should be expanded as OpenCPN
+  profile sources are formalized.

@@ -37,7 +37,9 @@
 #include "navutil.h"
 
 #include <cstdint>
+#include <wx/radiobut.h>
 #include <wx/spinctrl.h>
+#include <wx/stattext.h>
 #include <wx/textctrl.h>
 
 struct USBDevice {
@@ -76,7 +78,7 @@ public:
                                wxSTAY_ON_TOP);
   ~FirstUseWizImpl();
 
-  void OnWizardPageChanging(wxWizardEvent& event) { event.Skip(); }
+  void OnWizardPageChanging(wxWizardEvent& event);
   void OnWizardPageChanged(wxWizardEvent& event) { event.Skip(); }
   void OnWizardPageShown(wxWizardEvent& event);
   void OnWizardCancel(wxWizardEvent& event) { event.Skip(); }
@@ -103,6 +105,10 @@ public:
 private:
   MyConfig* m_pConfig;
   std::vector<ConnectionParams> m_detected_connections;
+  wxWizardPageSimple* m_wpOpenCPNImport = nullptr;
+  wxRadioButton* m_rbImportOpenCPNYes = nullptr;
+  wxRadioButton* m_rbImportOpenCPNNo = nullptr;
+  wxStaticText* m_stOpenCPNImportStatus = nullptr;
   wxWizardPageSimple* m_wpBoatProfile = nullptr;
   wxTextCtrl* m_tcBoatProfileName = nullptr;
   wxSpinCtrlDouble* m_scBoatLength = nullptr;
@@ -114,8 +120,10 @@ private:
   BoatProfile m_initial_boat_profile;
   NMEA0183Flavor SeemsN0183(std::string& data);
   bool SeemsN2000(std::string& data);
+  void CreateOpenCPNImportPage();
   void CreateBoatProfilePage();
   void RelinkPages();
+  bool ApplyOpenCPNImport(wxString* message);
   BoatProfile ReadBoatProfilePage() const;
   bool SaveBoatProfileFromWizard(wxString* error);
 

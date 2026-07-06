@@ -39,6 +39,9 @@
 #endif  // precompiled headers
 
 #include <regex>
+#include <vector>
+#include <wx/fileconf.h>
+#include <wx/filename.h>
 #include <wx/msgdlg.h>
 #include <wx/sckaddr.h>
 #include <wx/socket.h>
@@ -68,14 +71,12 @@ namespace {
 wxSpinCtrlDouble* AddBoatDoubleField(wxWindow* parent, wxFlexGridSizer* grid,
                                      const wxString& label, double value,
                                      double min, double max, double increment,
-                                     int digits,
-                                     const wxString& unit_label) {
+                                     int digits, const wxString& unit_label) {
   grid->Add(new wxStaticText(parent, wxID_ANY, label), 0,
             wxALIGN_CENTER_VERTICAL | wxALL, 5);
-  auto* ctrl = new wxSpinCtrlDouble(parent, wxID_ANY, wxEmptyString,
-                                    wxDefaultPosition, wxDefaultSize,
-                                    wxSP_ARROW_KEYS, min, max, value,
-                                    increment);
+  auto* ctrl = new wxSpinCtrlDouble(
+      parent, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
+      wxSP_ARROW_KEYS, min, max, value, increment);
   ctrl->SetDigits(digits);
   grid->Add(ctrl, 0, wxEXPAND | wxALL, 5);
   grid->Add(new wxStaticText(parent, wxID_ANY, unit_label), 0,
@@ -92,6 +93,57 @@ wxString BoatProfileValidationMessage(const BoatProfileValidation& validation) {
   return message;
 }
 
+wxString JoinPath(const wxString& dir, const wxString& leaf) {
+  return wxFileName(dir, leaf).GetFullPath();
+}
+
+wxString EnvPath(const wxString& name) {
+  wxString value;
+  wxGetEnv(name, &value);
+  return value;
+}
+
+std::vector<wxString> OpenCPNConfigCandidates() {
+  std::vector<wxString> candidates;
+
+#ifdef __WXMSW__
+  wxString appdata = EnvPath("APPDATA");
+  if (!appdata.empty()) {
+    candidates.push_back(JoinPath(JoinPath(appdata, "opencpn"), "opencpn.ini"));
+    candidates.push_back(JoinPath(JoinPath(appdata, "OpenCPN"), "opencpn.ini"));
+  }
+#elif defined(__WXOSX__)
+  const wxString home = wxGetHomeDir();
+  candidates.push_back(
+      JoinPath(JoinPath(home, "Library/Preferences/opencpn"), "opencpn.conf"));
+  candidates.push_back(JoinPath(
+      JoinPath(home, "Library/Application Support/OpenCPN"), "opencpn.conf"));
+#else
+  wxString xdg_config = EnvPath("XDG_CONFIG_HOME");
+  if (!xdg_config.empty())
+    candidates.push_back(
+        JoinPath(JoinPath(xdg_config, "opencpn"), "opencpn.conf"));
+  const wxString home = wxGetHomeDir();
+  candidates.push_back(
+      JoinPath(JoinPath(home, ".config/opencpn"), "opencpn.conf"));
+  candidates.push_back(JoinPath(JoinPath(home, ".opencpn"), "opencpn.conf"));
+  candidates.push_back(
+      JoinPath(JoinPath(home, ".var/app/org.opencpn.OpenCPN/config/opencpn"),
+               "opencpn.conf"));
+  candidates.push_back(JoinPath(JoinPath(home, "snap/opencpn/current/.opencpn"),
+                                "opencpn.conf"));
+#endif
+
+  return candidates;
+}
+
+wxString FindOpenCPNConfigFile() {
+  for (const auto& candidate : OpenCPNConfigCandidates()) {
+    if (wxFileName::FileExists(candidate)) return candidate;
+  }
+  return wxEmptyString;
+}
+
 }  // namespace
 
 FirstUseWizImpl::FirstUseWizImpl(wxWindow* parent, MyConfig* pConfig,
@@ -100,6 +152,7 @@ FirstUseWizImpl::FirstUseWizImpl(wxWindow* parent, MyConfig* pConfig,
                                  long style)
     : FirstUseWiz(parent, id, title, bitmap, pos, style) {
   m_pConfig = pConfig;
+  CreateOpenCPNImportPage();
   CreateBoatProfilePage();
 
   wxString svgDir = g_Platform->GetSharedDataDir() + _T("uidata") +
@@ -145,8 +198,55 @@ FirstUseWizImpl::FirstUseWizImpl(wxWindow* parent, MyConfig* pConfig,
 
 FirstUseWizImpl::~FirstUseWizImpl() = default;
 
+void FirstUseWizImpl::CreateOpenCPNImportPage() {
+  m_wpOpenCPNImport = new wxWizardPageSimple(this);
+
+  auto* page_sizer = new wxBoxSizer(wxVERTICAL);
+  auto* intro =
+      new wxStaticText(m_wpOpenCPNImport, wxID_ANY,
+                       _("Do you have OpenCPN installed on this computer?"));
+  intro->Wrap(650);
+  page_sizer->Add(intro, 0, wxEXPAND | wxALL, 8);
+
+  auto* detail = new wxStaticText(
+      m_wpOpenCPNImport, wxID_ANY,
+      _("SuperCPN can look for an existing OpenCPN configuration and use its "
+        "vessel dimensions and default boat speed to prefill your first "
+        "SuperCPN boat profile."));
+  detail->Wrap(650);
+  page_sizer->Add(detail, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
+
+  m_rbImportOpenCPNYes =
+      new wxRadioButton(m_wpOpenCPNImport, wxID_ANY, _("Yes, import settings"),
+                        wxDefaultPosition, wxDefaultSize, wxRB_GROUP);
+  m_rbImportOpenCPNNo = new wxRadioButton(m_wpOpenCPNImport, wxID_ANY,
+                                          _("No, create a new profile"));
+  page_sizer->Add(m_rbImportOpenCPNYes, 0, wxALL, 8);
+  page_sizer->Add(m_rbImportOpenCPNNo, 0, wxLEFT | wxRIGHT | wxBOTTOM, 8);
+
+  const wxString config_file = FindOpenCPNConfigFile();
+  m_stOpenCPNImportStatus = new wxStaticText(
+      m_wpOpenCPNImport, wxID_ANY,
+      config_file.empty()
+          ? _("No OpenCPN configuration was detected. You can still create a "
+              "new SuperCPN boat profile.")
+          : wxString::Format(_("Detected OpenCPN configuration:\n%s"),
+                             config_file));
+  m_stOpenCPNImportStatus->Wrap(650);
+  page_sizer->Add(m_stOpenCPNImportStatus, 0, wxEXPAND | wxALL, 8);
+
+  if (config_file.empty()) m_rbImportOpenCPNNo->SetValue(true);
+
+  m_wpOpenCPNImport->SetSizer(page_sizer);
+  m_wpOpenCPNImport->Layout();
+
+  m_pages.Insert(m_wpOpenCPNImport, 0);
+  RelinkPages();
+}
+
 void FirstUseWizImpl::CreateBoatProfilePage() {
-  m_initial_boat_profile = BoatProfileStore::CreateFromCurrentSettings(_("My Boat"));
+  m_initial_boat_profile =
+      BoatProfileStore::CreateFromCurrentSettings(_("My Boat"));
 
   auto& service = BoatProfileService::Get();
   wxString load_error;
@@ -180,35 +280,29 @@ void FirstUseWizImpl::CreateBoatProfilePage() {
 
   grid->Add(new wxStaticText(profile_parent, wxID_ANY, _("Profile name")), 0,
             wxALIGN_CENTER_VERTICAL | wxALL, 5);
-  m_tcBoatProfileName = new wxTextCtrl(profile_parent, wxID_ANY,
-                                       m_initial_boat_profile.name);
+  m_tcBoatProfileName =
+      new wxTextCtrl(profile_parent, wxID_ANY, m_initial_boat_profile.name);
   grid->Add(m_tcBoatProfileName, 0, wxEXPAND | wxALL, 5);
   grid->AddSpacer(1);
 
-  m_scBoatLength =
-      AddBoatDoubleField(profile_parent, grid, _("Length"),
-                         m_initial_boat_profile.length_m, 0.1, 500.0, 0.1, 2,
-                         _("m"));
-  m_scBoatBeam =
-      AddBoatDoubleField(profile_parent, grid, _("Beam"),
-                         m_initial_boat_profile.beam_m, 0.1, 100.0, 0.1, 2,
-                         _("m"));
-  m_scBoatDraft =
-      AddBoatDoubleField(profile_parent, grid, _("Draft"),
-                         m_initial_boat_profile.draft_m, 0.1, 100.0, 0.1, 2,
-                         _("m"));
-  m_scBoatAirDraft =
-      AddBoatDoubleField(profile_parent, grid, _("Air draft"),
-                         m_initial_boat_profile.air_draft_m, 0.1, 200.0, 0.1,
-                         2, _("m"));
-  m_scBoatCruisingSpeed =
-      AddBoatDoubleField(profile_parent, grid, _("Cruising speed"),
-                         m_initial_boat_profile.cruising_speed_kn, 0.1, 200.0,
-                         0.1, 2, _("kn"));
-  m_scBoatMaxSpeed =
-      AddBoatDoubleField(profile_parent, grid, _("Maximum speed"),
-                         m_initial_boat_profile.max_speed_kn, 0.0, 300.0, 0.1,
-                         2, _("kn"));
+  m_scBoatLength = AddBoatDoubleField(profile_parent, grid, _("Length"),
+                                      m_initial_boat_profile.length_m, 0.1,
+                                      500.0, 0.1, 2, _("m"));
+  m_scBoatBeam = AddBoatDoubleField(profile_parent, grid, _("Beam"),
+                                    m_initial_boat_profile.beam_m, 0.1, 100.0,
+                                    0.1, 2, _("m"));
+  m_scBoatDraft = AddBoatDoubleField(profile_parent, grid, _("Draft"),
+                                     m_initial_boat_profile.draft_m, 0.1, 100.0,
+                                     0.1, 2, _("m"));
+  m_scBoatAirDraft = AddBoatDoubleField(profile_parent, grid, _("Air draft"),
+                                        m_initial_boat_profile.air_draft_m, 0.1,
+                                        200.0, 0.1, 2, _("m"));
+  m_scBoatCruisingSpeed = AddBoatDoubleField(
+      profile_parent, grid, _("Cruising speed"),
+      m_initial_boat_profile.cruising_speed_kn, 0.1, 200.0, 0.1, 2, _("kn"));
+  m_scBoatMaxSpeed = AddBoatDoubleField(
+      profile_parent, grid, _("Maximum speed"),
+      m_initial_boat_profile.max_speed_kn, 0.0, 300.0, 0.1, 2, _("kn"));
 
   profile_box->Add(grid, 0, wxEXPAND | wxALL, 5);
   content_sizer->Add(profile_box, 0, wxEXPAND | wxALL, 8);
@@ -218,14 +312,6 @@ void FirstUseWizImpl::CreateBoatProfilePage() {
       _("You can refine this profile later from the boat profile settings."));
   note->Wrap(650);
   content_sizer->Add(note, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
-
-  auto* import_button =
-      new wxButton(scroller, wxID_ANY, _("Import from OpenCPN..."));
-  import_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-    wxMessageBox(_("No OpenCPN boat profile import source was found."),
-                 _("Import from OpenCPN"), wxOK | wxICON_INFORMATION, this);
-  });
-  content_sizer->Add(import_button, 0, wxLEFT | wxRIGHT | wxBOTTOM, 8);
 
   scroller->SetSizer(content_sizer);
   content_sizer->Fit(scroller);
@@ -261,6 +347,57 @@ BoatProfile FirstUseWizImpl::ReadBoatProfilePage() const {
   return profile;
 }
 
+bool FirstUseWizImpl::ApplyOpenCPNImport(wxString* message) {
+  const wxString config_file = FindOpenCPNConfigFile();
+  if (config_file.empty()) {
+    if (message)
+      *message =
+          _("No OpenCPN configuration file was found for this operating "
+            "system.");
+    return false;
+  }
+
+  wxFileConfig open_cpn_config("", "", config_file, "",
+                               wxCONFIG_USE_LOCAL_FILE);
+  open_cpn_config.SetPath("/Settings");
+
+  bool imported_any = false;
+  double length_m = 0.0;
+  double beam_m = 0.0;
+  double default_speed_kn = 0.0;
+  if (open_cpn_config.Read("OwnShipLength", &length_m) && length_m > 0.0) {
+    m_scBoatLength->SetValue(length_m);
+    imported_any = true;
+  }
+  if (open_cpn_config.Read("OwnShipWidth", &beam_m) && beam_m > 0.0) {
+    m_scBoatBeam->SetValue(beam_m);
+    imported_any = true;
+  }
+  if (open_cpn_config.Read("DefaultBoatSpeed", &default_speed_kn) &&
+      default_speed_kn > 0.0) {
+    m_scBoatCruisingSpeed->SetValue(default_speed_kn);
+    m_scBoatMaxSpeed->SetValue(
+        std::max(default_speed_kn * 1.25, default_speed_kn + 0.5));
+    imported_any = true;
+  }
+
+  if (!imported_any) {
+    if (message)
+      *message = wxString::Format(
+          _("OpenCPN was detected, but no vessel dimensions or default boat "
+            "speed were found in:\n%s"),
+          config_file);
+    return false;
+  }
+
+  m_tcBoatProfileName->SetValue(_("Imported OpenCPN Boat"));
+  if (message)
+    *message = wxString::Format(_("Imported available OpenCPN vessel settings "
+                                  "from:\n%s"),
+                                config_file);
+  return true;
+}
+
 bool FirstUseWizImpl::SaveBoatProfileFromWizard(wxString* error) {
   BoatProfile profile = ReadBoatProfilePage();
   auto validation = BoatProfileStore::Validate(profile);
@@ -286,6 +423,21 @@ bool FirstUseWizImpl::SaveBoatProfileFromWizard(wxString* error) {
     if (!service.AddProfile(profile, error)) return false;
   }
   return service.SetActiveProfile(profile.id, error);
+}
+
+void FirstUseWizImpl::OnWizardPageChanging(wxWizardEvent& event) {
+  if (event.GetDirection() && event.GetPage() == m_wpOpenCPNImport &&
+      m_rbImportOpenCPNYes && m_rbImportOpenCPNYes->GetValue()) {
+    wxString message;
+    if (!ApplyOpenCPNImport(&message)) {
+      wxMessageBox(message, _("OpenCPN import"), wxOK | wxICON_INFORMATION,
+                   this);
+    } else if (m_stOpenCPNImportStatus) {
+      m_stOpenCPNImportStatus->SetLabel(message);
+      m_stOpenCPNImportStatus->Wrap(650);
+    }
+  }
+  event.Skip();
 }
 
 void FirstUseWizImpl::OnWizardFinished(wxWizardEvent& event) {

@@ -208,7 +208,7 @@ ocpnFloatingToolbarDialog::ocpnFloatingToolbarDialog(wxWindow *parent,
   m_cs = (ColorScheme)-1;
 
   m_style = g_StyleManager->GetCurrentStyle();
-  SetULDockPosition(wxPoint(4, g_maintoolbar_y));
+  SetULDockPosition(wxPoint(2, g_maintoolbar_y));
 
   SetGeometry(false, wxRect());
 
@@ -487,13 +487,7 @@ void ocpnFloatingToolbarDialog::SetGeometry(bool bAvoid, wxRect rectAvoid) {
   }
 }
 
-int ocpnFloatingToolbarDialog::GetFloatingInset() const {
-  if (m_orient != wxTB_VERTICAL || !m_style) return 0;
-
-  wxSize tool_size = m_style->GetToolSize();
-  int inset = wxRound(wxMin(tool_size.x, tool_size.y) * m_sizefactor * 0.25);
-  return wxMax(6, inset);
-}
+int ocpnFloatingToolbarDialog::GetFloatingInset() const { return 0; }
 
 void ocpnFloatingToolbarDialog::SetDefaultPosition() {
   if (m_block) return;
@@ -1942,7 +1936,7 @@ void ocpnToolBarSimple::SetViewportHeight(int height) {
 
 wxCoord ocpnToolBarSimple::GetSidebarWidth(wxCoord toolWidth) const {
   return toolWidth + GetSidebarLabelGap() + GetSidebarLabelPadding() +
-         wxRound(128 * m_sizefactor);
+         wxRound(166 * m_sizefactor);
 }
 
 wxCoord ocpnToolBarSimple::GetSidebarLabelGap() const {

@@ -2,7 +2,7 @@
 Version=1.0
 Name=SuperCPN
 Comment=Open source chart plotter / navigator
-Exec=supercpn
+Exec=/bin/sh -c "PATH=\\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin; exec supercpn \\"\\$@\\"" supercpn
 Icon=supercpn
 StartupNotify=true
 Terminal=false

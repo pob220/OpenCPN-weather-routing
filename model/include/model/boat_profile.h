@@ -24,6 +24,14 @@ struct BoatProfile {
   double downwind_twa_deg = 150.0;
   double min_routing_wind_kn = 0.0;
   double max_routing_wind_kn = 40.0;
+  wxString weather_provider = "saildocs_gfs";
+  wxString weather_model = "GFS";
+  wxString weather_grib_directory;
+  int weather_forecast_hours = 72;
+  int weather_step_hours = 3;
+  double weather_grid_spacing_deg = 0.25;
+  bool weather_include_gusts = true;
+  bool weather_include_waves = false;
   double current_grid_spacing_deg = 0.05;
   int current_duration_hours = 24;
   int current_step_hours = 1;

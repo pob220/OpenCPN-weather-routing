@@ -698,6 +698,14 @@ private:
   wxTextCtrl *m_currentGribOutputDir;
   wxTextCtrl *m_currentGribDownloadDir;
   wxTextCtrl *m_currentGribTpxoModelDir;
+  wxChoice *m_weatherRoutingProviderChoice;
+  wxChoice *m_weatherRoutingModelChoice;
+  wxTextCtrl *m_weatherRoutingGribDir;
+  wxSpinCtrl *m_weatherRoutingForecastHours;
+  wxSpinCtrl *m_weatherRoutingStepHours;
+  wxSpinCtrlDouble *m_weatherRoutingGridSpacing;
+  wxCheckBox *m_weatherRoutingIncludeGusts;
+  wxCheckBox *m_weatherRoutingIncludeWaves;
   wxTextCtrl *m_currentGribProfileSummary;
   wxTextCtrl *m_currentGribCommandPreview;
 

@@ -1648,6 +1648,23 @@ void options::Init() {
   m_pageConnections = -1;
 
   pEnableTenHertz = nullptr;
+  m_weatherRoutingProviderChoice = nullptr;
+  m_weatherRoutingModelChoice = nullptr;
+  m_weatherRoutingGribDir = nullptr;
+  m_weatherRoutingForecastHours = nullptr;
+  m_weatherRoutingStepHours = nullptr;
+  m_weatherRoutingGridSpacing = nullptr;
+  m_weatherRoutingIncludeGusts = nullptr;
+  m_weatherRoutingIncludeWaves = nullptr;
+  m_currentGribProviderChoice = nullptr;
+  m_currentGribGridSpacing = nullptr;
+  m_currentGribDurationHours = nullptr;
+  m_currentGribStepHours = nullptr;
+  m_currentGribOutputDir = nullptr;
+  m_currentGribDownloadDir = nullptr;
+  m_currentGribTpxoModelDir = nullptr;
+  m_currentGribProfileSummary = nullptr;
+  m_currentGribCommandPreview = nullptr;
 
   auto loader = PluginLoader::GetInstance();
   b_haveWMM = loader && loader->IsPlugInAvailable("WMM");
@@ -5533,6 +5550,95 @@ void options::CreatePanel_CurrentGrib(size_t parent, int border_size,
   profileSizer->Add(m_currentGribProfileSummary, 0,
                     wxEXPAND | wxALL, group_item_spacing);
 
+  auto* weatherBox =
+      new wxStaticBox(panel, wxID_ANY, _("Weather routing wind GRIB"));
+  auto* weatherSizer = new wxStaticBoxSizer(weatherBox, wxVERTICAL);
+  top->Add(weatherSizer, 0, wxEXPAND | wxALL, border_size);
+  auto* weatherGrid = new wxFlexGridSizer(0, 3, group_item_spacing,
+                                          group_item_spacing);
+  weatherGrid->AddGrowableCol(1);
+  weatherSizer->Add(weatherGrid, 0, wxEXPAND | wxALL, border_size);
+
+  wxArrayString weatherProviders;
+  weatherProviders.Add("saildocs_gfs");
+  weatherProviders.Add("xygrib");
+  weatherProviders.Add("predictwind");
+  weatherProviders.Add("local_grib");
+  weatherProviders.Add("manual");
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("Provider")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_weatherRoutingProviderChoice =
+      new wxChoice(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                   weatherProviders);
+  weatherGrid->Add(m_weatherRoutingProviderChoice, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  weatherGrid->AddSpacer(1);
+
+  wxArrayString weatherModels;
+  weatherModels.Add("GFS");
+  weatherModels.Add("ECMWF");
+  weatherModels.Add("ICON");
+  weatherModels.Add("NAM");
+  weatherModels.Add("HRRR");
+  weatherModels.Add("PredictWind");
+  weatherModels.Add("Custom");
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("Model")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_weatherRoutingModelChoice =
+      new wxChoice(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                   weatherModels);
+  weatherGrid->Add(m_weatherRoutingModelChoice, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  weatherGrid->AddSpacer(1);
+
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("Weather GRIB directory")),
+                   0, wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_weatherRoutingGribDir = new wxTextCtrl(panel, wxID_ANY);
+  weatherGrid->Add(m_weatherRoutingGribDir, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  weatherGrid->AddSpacer(1);
+
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("Forecast duration")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_weatherRoutingForecastHours =
+      new wxSpinCtrl(panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                     wxDefaultSize, wxSP_ARROW_KEYS, 1, 384, 72);
+  weatherGrid->Add(m_weatherRoutingForecastHours, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("hours")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("Forecast step")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_weatherRoutingStepHours =
+      new wxSpinCtrl(panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                     wxDefaultSize, wxSP_ARROW_KEYS, 1, 24, 3);
+  weatherGrid->Add(m_weatherRoutingStepHours, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("hours")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("Grid spacing")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_weatherRoutingGridSpacing =
+      new wxSpinCtrlDouble(panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                           wxDefaultSize, wxSP_ARROW_KEYS, 0.01, 5.0, 0.25,
+                           0.01);
+  m_weatherRoutingGridSpacing->SetDigits(3);
+  weatherGrid->Add(m_weatherRoutingGridSpacing, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  weatherGrid->Add(new wxStaticText(panel, wxID_ANY, _("deg")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+
+  m_weatherRoutingIncludeGusts =
+      new wxCheckBox(panel, wxID_ANY, _("Request wind gusts"));
+  weatherSizer->Add(m_weatherRoutingIncludeGusts, 0,
+                    wxLEFT | wxRIGHT | wxBOTTOM, border_size);
+  m_weatherRoutingIncludeWaves =
+      new wxCheckBox(panel, wxID_ANY, _("Request wave fields"));
+  weatherSizer->Add(m_weatherRoutingIncludeWaves, 0,
+                    wxLEFT | wxRIGHT | wxBOTTOM, border_size);
+
   auto* sourceBox = new wxStaticBox(panel, wxID_ANY, _("Current source"));
   auto* sourceSizer = new wxStaticBoxSizer(sourceBox, wxVERTICAL);
   top->Add(sourceSizer, 0, wxEXPAND | wxALL, border_size);
@@ -5637,6 +5743,14 @@ void options::CreatePanel_CurrentGrib(size_t parent, int border_size,
     UpdateCurrentGribCommandPreview();
   };
   m_currentGribProviderChoice->Bind(wxEVT_CHOICE, updatePreview);
+  m_weatherRoutingProviderChoice->Bind(wxEVT_CHOICE, updatePreview);
+  m_weatherRoutingModelChoice->Bind(wxEVT_CHOICE, updatePreview);
+  m_weatherRoutingGridSpacing->Bind(wxEVT_SPINCTRLDOUBLE, updatePreview);
+  m_weatherRoutingForecastHours->Bind(wxEVT_SPINCTRL, updatePreview);
+  m_weatherRoutingStepHours->Bind(wxEVT_SPINCTRL, updatePreview);
+  m_weatherRoutingGribDir->Bind(wxEVT_TEXT, updatePreview);
+  m_weatherRoutingIncludeGusts->Bind(wxEVT_CHECKBOX, updatePreview);
+  m_weatherRoutingIncludeWaves->Bind(wxEVT_CHECKBOX, updatePreview);
   m_currentGribGridSpacing->Bind(wxEVT_SPINCTRLDOUBLE, updatePreview);
   m_currentGribDurationHours->Bind(wxEVT_SPINCTRL, updatePreview);
   m_currentGribStepHours->Bind(wxEVT_SPINCTRL, updatePreview);
@@ -5666,6 +5780,24 @@ void options::LoadCurrentGribSettings() {
   wxString outputDir =
       profile && !profile->data_directory.empty() ? profile->data_directory
                                                   : defaultOutput.GetPath();
+  wxFileName defaultWeather(wxStandardPaths::Get().GetUserDataDir(), "");
+  defaultWeather.AppendDir("grib");
+  defaultWeather.AppendDir("weather");
+  wxString weatherProvider =
+      profile ? profile->weather_provider : "saildocs_gfs";
+  if (weatherProvider.empty()) weatherProvider = "saildocs_gfs";
+  wxString weatherModel = profile ? profile->weather_model : "GFS";
+  if (weatherModel.empty()) weatherModel = "GFS";
+  wxString weatherDirectory =
+      profile && !profile->weather_grib_directory.empty()
+          ? profile->weather_grib_directory
+          : defaultWeather.GetPath();
+  int weatherHours = profile ? profile->weather_forecast_hours : 72;
+  int weatherStep = profile ? profile->weather_step_hours : 3;
+  double weatherGrid =
+      profile ? profile->weather_grid_spacing_deg : 0.25;
+  bool weatherGusts = profile ? profile->weather_include_gusts : true;
+  bool weatherWaves = profile ? profile->weather_include_waves : false;
 
   wxFileName defaultDownload(outputDir, "");
   defaultDownload.AppendDir("downloads");
@@ -5694,10 +5826,38 @@ void options::LoadCurrentGribSettings() {
     stepHours = static_cast<int>(longValue);
     m_currentGribDownloadDir->SetValue(downloadDir);
     m_currentGribTpxoModelDir->SetValue(tpxoDir);
+
+    m_pConfig->SetPath("/Settings/WeatherRouting");
+    m_pConfig->Read("Provider", &weatherProvider, weatherProvider);
+    m_pConfig->Read("Model", &weatherModel, weatherModel);
+    m_pConfig->Read("GribDirectory", &weatherDirectory, weatherDirectory);
+    longValue = weatherHours;
+    m_pConfig->Read("ForecastHours", &longValue, longValue);
+    weatherHours = static_cast<int>(longValue);
+    longValue = weatherStep;
+    m_pConfig->Read("StepHours", &longValue, longValue);
+    weatherStep = static_cast<int>(longValue);
+    m_pConfig->Read("GridSpacingDeg", &weatherGrid, weatherGrid);
+    m_pConfig->Read("IncludeGusts", &weatherGusts, weatherGusts);
+    m_pConfig->Read("IncludeWaves", &weatherWaves, weatherWaves);
   } else {
     m_currentGribDownloadDir->SetValue(defaultDownload.GetPath());
     m_currentGribTpxoModelDir->SetValue(defaultTpxo.GetPath());
   }
+
+  int weatherProviderIndex =
+      m_weatherRoutingProviderChoice->FindString(weatherProvider);
+  if (weatherProviderIndex == wxNOT_FOUND) weatherProviderIndex = 0;
+  m_weatherRoutingProviderChoice->SetSelection(weatherProviderIndex);
+  int weatherModelIndex = m_weatherRoutingModelChoice->FindString(weatherModel);
+  if (weatherModelIndex == wxNOT_FOUND) weatherModelIndex = 0;
+  m_weatherRoutingModelChoice->SetSelection(weatherModelIndex);
+  m_weatherRoutingGribDir->SetValue(weatherDirectory);
+  m_weatherRoutingForecastHours->SetValue(wxMax(1, weatherHours));
+  m_weatherRoutingStepHours->SetValue(wxMax(1, weatherStep));
+  m_weatherRoutingGridSpacing->SetValue(wxMax(0.01, weatherGrid));
+  m_weatherRoutingIncludeGusts->SetValue(weatherGusts);
+  m_weatherRoutingIncludeWaves->SetValue(weatherWaves);
 
   int providerIndex = m_currentGribProviderChoice->FindString(defaultProvider);
   if (providerIndex == wxNOT_FOUND) providerIndex = 0;
@@ -5711,6 +5871,26 @@ void options::LoadCurrentGribSettings() {
 void options::SaveCurrentGribSettings() {
   if (!m_pConfig || !m_currentGribProviderChoice) return;
 
+  const wxString weatherProvider =
+      m_weatherRoutingProviderChoice->GetStringSelection();
+  const wxString weatherModel = m_weatherRoutingModelChoice->GetStringSelection();
+  const wxString weatherDirectory = m_weatherRoutingGribDir->GetValue();
+  const int weatherForecastHours = m_weatherRoutingForecastHours->GetValue();
+  const int weatherStepHours = m_weatherRoutingStepHours->GetValue();
+  const double weatherGridSpacing = m_weatherRoutingGridSpacing->GetValue();
+  const bool weatherIncludeGusts = m_weatherRoutingIncludeGusts->GetValue();
+  const bool weatherIncludeWaves = m_weatherRoutingIncludeWaves->GetValue();
+
+  m_pConfig->SetPath("/Settings/WeatherRouting");
+  m_pConfig->Write("Provider", weatherProvider);
+  m_pConfig->Write("Model", weatherModel);
+  m_pConfig->Write("GribDirectory", weatherDirectory);
+  m_pConfig->Write("ForecastHours", static_cast<long>(weatherForecastHours));
+  m_pConfig->Write("StepHours", static_cast<long>(weatherStepHours));
+  m_pConfig->Write("GridSpacingDeg", weatherGridSpacing);
+  m_pConfig->Write("IncludeGusts", weatherIncludeGusts);
+  m_pConfig->Write("IncludeWaves", weatherIncludeWaves);
+
   m_pConfig->SetPath("/Settings/CurrentGRIB");
   m_pConfig->Write("Provider",
                    m_currentGribProviderChoice->GetStringSelection());
@@ -5722,6 +5902,31 @@ void options::SaveCurrentGribSettings() {
                    static_cast<long>(m_currentGribDurationHours->GetValue()));
   m_pConfig->Write("StepHours",
                    static_cast<long>(m_currentGribStepHours->GetValue()));
+
+  wxString error;
+  auto& profileService = BoatProfileService::Get();
+  if (profileService.EnsureActiveProfile(_("My Boat"), &error)) {
+    const BoatProfile* active = profileService.GetActiveProfile();
+    if (active) {
+      BoatProfile updated = *active;
+      updated.weather_provider = weatherProvider;
+      updated.weather_model = weatherModel;
+      updated.weather_grib_directory = weatherDirectory;
+      updated.weather_forecast_hours = weatherForecastHours;
+      updated.weather_step_hours = weatherStepHours;
+      updated.weather_grid_spacing_deg = weatherGridSpacing;
+      updated.weather_include_gusts = weatherIncludeGusts;
+      updated.weather_include_waves = weatherIncludeWaves;
+      updated.current_provider = m_currentGribProviderChoice->GetStringSelection();
+      updated.data_directory = m_currentGribOutputDir->GetValue();
+      updated.current_grid_spacing_deg = m_currentGribGridSpacing->GetValue();
+      updated.current_duration_hours = m_currentGribDurationHours->GetValue();
+      updated.current_step_hours = m_currentGribStepHours->GetValue();
+      if (profileService.UpdateProfile(updated, &error)) {
+        profileService.SetActiveProfile(updated.id, &error);
+      }
+    }
+  }
 }
 
 wxString options::BuildCurrentGribCommandPreview() const {
@@ -5742,7 +5947,25 @@ wxString options::BuildCurrentGribCommandPreview() const {
   wxFileName output(m_currentGribOutputDir->GetValue(), "");
   output.SetFullName("current_from_boat_profile.grb");
 
-  wxString command = envPrefix + python + " -m tidal_current_grib_generator.cli";
+  wxString command;
+  if (m_weatherRoutingProviderChoice) {
+    command << _("Weather routing wind GRIB") << ":\n";
+    command << _("Provider") << ": "
+            << m_weatherRoutingProviderChoice->GetStringSelection() << "\n";
+    command << _("Model") << ": "
+            << m_weatherRoutingModelChoice->GetStringSelection() << "\n";
+    command << _("Directory") << ": "
+            << m_weatherRoutingGribDir->GetValue() << "\n";
+    command << _("Required fields") << ": "
+            << _("wind speed, wind direction, valid forecast times");
+    if (m_weatherRoutingIncludeGusts->GetValue())
+      command << ", " << _("wind gusts");
+    if (m_weatherRoutingIncludeWaves->GetValue())
+      command << ", " << _("waves");
+    command << "\n\n";
+  }
+
+  command += envPrefix + python + " -m tidal_current_grib_generator.cli";
   if (provider == "marine_ie_irish_sea") {
     command += " generate-provider --provider marine_ie_irish_sea";
   } else if (provider == "tpxo") {
@@ -5788,6 +6011,14 @@ void options::UpdateCurrentGribBoatProfileSummary() {
   summary << _("Routing wind range") << ": "
           << wxString::Format("%.1f-%.1f kn", profile->min_routing_wind_kn,
                               profile->max_routing_wind_kn)
+          << "\n";
+  summary << _("Weather provider") << ": " << profile->weather_provider << " / "
+          << profile->weather_model << "\n";
+  summary << _("Weather forecast") << ": "
+          << wxString::Format("%d h, %d h step, %.3f deg",
+                              profile->weather_forecast_hours,
+                              profile->weather_step_hours,
+                              profile->weather_grid_spacing_deg)
           << "\n";
   summary << _("Current grid") << ": "
           << wxString::Format("%.3f deg, %d h, %d h step",

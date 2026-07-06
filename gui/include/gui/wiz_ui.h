@@ -37,6 +37,8 @@
 #include "navutil.h"
 
 #include <cstdint>
+#include <wx/checkbox.h>
+#include <wx/choice.h>
 #include <wx/radiobut.h>
 #include <wx/spinctrl.h>
 #include <wx/stattext.h>
@@ -117,11 +119,21 @@ private:
   wxSpinCtrlDouble* m_scBoatAirDraft = nullptr;
   wxSpinCtrlDouble* m_scBoatCruisingSpeed = nullptr;
   wxSpinCtrlDouble* m_scBoatMaxSpeed = nullptr;
+  wxWizardPageSimple* m_wpWeatherRouting = nullptr;
+  wxChoice* m_cWeatherProvider = nullptr;
+  wxChoice* m_cWeatherModel = nullptr;
+  wxTextCtrl* m_tcWeatherGribDirectory = nullptr;
+  wxSpinCtrl* m_scWeatherForecastHours = nullptr;
+  wxSpinCtrl* m_scWeatherStepHours = nullptr;
+  wxSpinCtrlDouble* m_scWeatherGridSpacing = nullptr;
+  wxCheckBox* m_cbWeatherIncludeGusts = nullptr;
+  wxCheckBox* m_cbWeatherIncludeWaves = nullptr;
   BoatProfile m_initial_boat_profile;
   NMEA0183Flavor SeemsN0183(std::string& data);
   bool SeemsN2000(std::string& data);
   void CreateOpenCPNImportPage();
   void CreateBoatProfilePage();
+  void CreateWeatherRoutingPage();
   void RelinkPages();
   bool ApplyOpenCPNImport(wxString* message);
   BoatProfile ReadBoatProfilePage() const;

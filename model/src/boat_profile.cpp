@@ -80,6 +80,14 @@ wxJSONValue ToJson(const BoatProfile& profile) {
   value["downwind_twa_deg"] = profile.downwind_twa_deg;
   value["min_routing_wind_kn"] = profile.min_routing_wind_kn;
   value["max_routing_wind_kn"] = profile.max_routing_wind_kn;
+  value["weather_provider"] = profile.weather_provider;
+  value["weather_model"] = profile.weather_model;
+  value["weather_grib_directory"] = profile.weather_grib_directory;
+  value["weather_forecast_hours"] = profile.weather_forecast_hours;
+  value["weather_step_hours"] = profile.weather_step_hours;
+  value["weather_grid_spacing_deg"] = profile.weather_grid_spacing_deg;
+  value["weather_include_gusts"] = profile.weather_include_gusts;
+  value["weather_include_waves"] = profile.weather_include_waves;
   value["current_grid_spacing_deg"] = profile.current_grid_spacing_deg;
   value["current_duration_hours"] = profile.current_duration_hours;
   value["current_step_hours"] = profile.current_step_hours;
@@ -111,6 +119,23 @@ BoatProfile FromJson(const wxJSONValue& value) {
   profile.downwind_twa_deg = ReadDouble(value, "downwind_twa_deg", 150.0);
   profile.min_routing_wind_kn = ReadDouble(value, "min_routing_wind_kn");
   profile.max_routing_wind_kn = ReadDouble(value, "max_routing_wind_kn", 40.0);
+  profile.weather_provider =
+      ReadString(value, "weather_provider", "saildocs_gfs");
+  profile.weather_model = ReadString(value, "weather_model", "GFS");
+  profile.weather_grib_directory = ReadString(value, "weather_grib_directory");
+  profile.weather_forecast_hours =
+      ReadInt(value, "weather_forecast_hours", 72);
+  profile.weather_step_hours = ReadInt(value, "weather_step_hours", 3);
+  profile.weather_grid_spacing_deg =
+      ReadDouble(value, "weather_grid_spacing_deg", 0.25);
+  profile.weather_include_gusts =
+      value.ItemAt("weather_include_gusts").IsBool()
+          ? value.ItemAt("weather_include_gusts").AsBool()
+          : true;
+  profile.weather_include_waves =
+      value.ItemAt("weather_include_waves").IsBool()
+          ? value.ItemAt("weather_include_waves").AsBool()
+          : false;
   profile.current_grid_spacing_deg =
       ReadDouble(value, "current_grid_spacing_deg", 0.05);
   profile.current_duration_hours = ReadInt(value, "current_duration_hours", 24);
@@ -182,6 +207,13 @@ BoatProfile BoatProfileStore::CreateDefaultProfile(const wxString& name) {
   profile.downwind_twa_deg = 150.0;
   profile.min_routing_wind_kn = 3.0;
   profile.max_routing_wind_kn = 40.0;
+  profile.weather_provider = "saildocs_gfs";
+  profile.weather_model = "GFS";
+  profile.weather_forecast_hours = 72;
+  profile.weather_step_hours = 3;
+  profile.weather_grid_spacing_deg = 0.25;
+  profile.weather_include_gusts = true;
+  profile.weather_include_waves = false;
   profile.current_grid_spacing_deg = 0.05;
   profile.current_duration_hours = 24;
   profile.current_step_hours = 1;
@@ -241,6 +273,18 @@ BoatProfileValidation BoatProfileStore::Validate(const BoatProfile& profile) {
     add_error("Maximum routing wind cannot be less than minimum routing wind.");
   if (profile.min_routing_wind_kn < 0.0)
     add_error("Minimum routing wind cannot be negative.");
+  if (profile.weather_provider.empty())
+    add_error("Weather provider is required.");
+  if (profile.weather_model.empty()) add_error("Weather model is required.");
+  if (profile.weather_forecast_hours <= 0)
+    add_error("Weather forecast duration must be positive.");
+  if (profile.weather_step_hours <= 0)
+    add_error("Weather forecast step must be positive.");
+  if (profile.weather_forecast_hours > 0 && profile.weather_step_hours > 0 &&
+      profile.weather_forecast_hours % profile.weather_step_hours != 0)
+    add_error("Weather forecast duration must be divisible by the step.");
+  if (!IsPositive(profile.weather_grid_spacing_deg))
+    add_error("Weather grid spacing must be positive.");
   if (!IsPositive(profile.current_grid_spacing_deg))
     add_error("Current grid spacing must be positive.");
   if (profile.current_duration_hours <= 0)

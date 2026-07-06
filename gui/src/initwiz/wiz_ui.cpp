@@ -45,6 +45,7 @@
 #include <wx/msgdlg.h>
 #include <wx/sckaddr.h>
 #include <wx/socket.h>
+#include <wx/stdpaths.h>
 #include <wx/jsonval.h>
 #include <wx/jsonreader.h>
 #include "wiz_ui.h"
@@ -82,6 +83,16 @@ wxSpinCtrlDouble* AddBoatDoubleField(wxWindow* parent, wxFlexGridSizer* grid,
   grid->Add(new wxStaticText(parent, wxID_ANY, unit_label), 0,
             wxALIGN_CENTER_VERTICAL | wxALL, 5);
   return ctrl;
+}
+
+void AddTextField(wxWindow* parent, wxFlexGridSizer* grid,
+                  const wxString& label, wxTextCtrl** ctrl,
+                  const wxString& value = wxEmptyString) {
+  grid->Add(new wxStaticText(parent, wxID_ANY, label), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  *ctrl = new wxTextCtrl(parent, wxID_ANY, value);
+  grid->Add(*ctrl, 0, wxEXPAND | wxALL, 5);
+  grid->AddSpacer(1);
 }
 
 wxString BoatProfileValidationMessage(const BoatProfileValidation& validation) {
@@ -144,6 +155,13 @@ wxString FindOpenCPNConfigFile() {
   return wxEmptyString;
 }
 
+wxString DefaultWeatherGribDirectory() {
+  wxFileName dir(wxStandardPaths::Get().GetUserDataDir(), "");
+  dir.AppendDir("grib");
+  dir.AppendDir("weather");
+  return dir.GetPath();
+}
+
 }  // namespace
 
 FirstUseWizImpl::FirstUseWizImpl(wxWindow* parent, MyConfig* pConfig,
@@ -154,6 +172,7 @@ FirstUseWizImpl::FirstUseWizImpl(wxWindow* parent, MyConfig* pConfig,
   m_pConfig = pConfig;
   CreateOpenCPNImportPage();
   CreateBoatProfilePage();
+  CreateWeatherRoutingPage();
 
   wxString svgDir = g_Platform->GetSharedDataDir() + _T("uidata") +
                     wxFileName::GetPathSeparator() + "MUI_flat" +
@@ -323,6 +342,117 @@ void FirstUseWizImpl::CreateBoatProfilePage() {
   RelinkPages();
 }
 
+void FirstUseWizImpl::CreateWeatherRoutingPage() {
+  m_wpWeatherRouting = new wxWizardPageSimple(this);
+
+  auto* page_sizer = new wxBoxSizer(wxVERTICAL);
+  auto* intro = new wxStaticText(
+      m_wpWeatherRouting, wxID_ANY,
+      _("Weather routing needs forecast wind speed and wind direction from a "
+        "weather GRIB. Choose the provider SuperCPN should prepare for this "
+        "boat profile."));
+  intro->Wrap(650);
+  page_sizer->Add(intro, 0, wxEXPAND | wxALL, 8);
+
+  auto* provider_box =
+      new wxStaticBoxSizer(wxVERTICAL, m_wpWeatherRouting,
+                           _("Weather routing provider"));
+  auto* provider_parent = provider_box->GetStaticBox();
+  auto* grid = new wxFlexGridSizer(0, 3, 0, 0);
+  grid->AddGrowableCol(1, 1);
+
+  wxArrayString providers;
+  providers.Add("saildocs_gfs");
+  providers.Add("xygrib");
+  providers.Add("predictwind");
+  providers.Add("local_grib");
+  providers.Add("manual");
+  grid->Add(new wxStaticText(provider_parent, wxID_ANY, _("Provider")), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  m_cWeatherProvider = new wxChoice(provider_parent, wxID_ANY,
+                                    wxDefaultPosition, wxDefaultSize,
+                                    providers);
+  grid->Add(m_cWeatherProvider, 0, wxEXPAND | wxALL, 5);
+  grid->AddSpacer(1);
+
+  wxArrayString models;
+  models.Add("GFS");
+  models.Add("ECMWF");
+  models.Add("ICON");
+  models.Add("NAM");
+  models.Add("HRRR");
+  models.Add("PredictWind");
+  models.Add("Custom");
+  grid->Add(new wxStaticText(provider_parent, wxID_ANY, _("Model")), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  m_cWeatherModel =
+      new wxChoice(provider_parent, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                   models);
+  grid->Add(m_cWeatherModel, 0, wxEXPAND | wxALL, 5);
+  grid->AddSpacer(1);
+
+  AddTextField(provider_parent, grid, _("Weather GRIB directory"),
+               &m_tcWeatherGribDirectory,
+               m_initial_boat_profile.weather_grib_directory.empty()
+                   ? DefaultWeatherGribDirectory()
+                   : m_initial_boat_profile.weather_grib_directory);
+
+  grid->Add(new wxStaticText(provider_parent, wxID_ANY, _("Forecast duration")),
+            0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  m_scWeatherForecastHours =
+      new wxSpinCtrl(provider_parent, wxID_ANY, wxEmptyString,
+                     wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS, 1, 384,
+                     m_initial_boat_profile.weather_forecast_hours);
+  grid->Add(m_scWeatherForecastHours, 0, wxEXPAND | wxALL, 5);
+  grid->Add(new wxStaticText(provider_parent, wxID_ANY, _("hours")), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+
+  grid->Add(new wxStaticText(provider_parent, wxID_ANY, _("Forecast step")), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  m_scWeatherStepHours =
+      new wxSpinCtrl(provider_parent, wxID_ANY, wxEmptyString,
+                     wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS, 1, 24,
+                     m_initial_boat_profile.weather_step_hours);
+  grid->Add(m_scWeatherStepHours, 0, wxEXPAND | wxALL, 5);
+  grid->Add(new wxStaticText(provider_parent, wxID_ANY, _("hours")), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+
+  m_scWeatherGridSpacing =
+      AddBoatDoubleField(provider_parent, grid, _("Grid spacing"),
+                         m_initial_boat_profile.weather_grid_spacing_deg, 0.01,
+                         5.0, 0.01, 3, _("deg"));
+
+  provider_box->Add(grid, 0, wxEXPAND | wxALL, 5);
+
+  m_cbWeatherIncludeGusts =
+      new wxCheckBox(provider_parent, wxID_ANY, _("Request wind gusts"));
+  m_cbWeatherIncludeGusts->SetValue(
+      m_initial_boat_profile.weather_include_gusts);
+  provider_box->Add(m_cbWeatherIncludeGusts, 0, wxALL, 5);
+
+  m_cbWeatherIncludeWaves =
+      new wxCheckBox(provider_parent, wxID_ANY, _("Request wave fields"));
+  m_cbWeatherIncludeWaves->SetValue(
+      m_initial_boat_profile.weather_include_waves);
+  provider_box->Add(m_cbWeatherIncludeWaves, 0, wxALL, 5);
+
+  page_sizer->Add(provider_box, 0, wxEXPAND | wxALL, 8);
+
+  auto setChoice = [](wxChoice* choice, const wxString& value) {
+    int index = choice->FindString(value);
+    if (index == wxNOT_FOUND) index = 0;
+    choice->SetSelection(index);
+  };
+  setChoice(m_cWeatherProvider, m_initial_boat_profile.weather_provider);
+  setChoice(m_cWeatherModel, m_initial_boat_profile.weather_model);
+
+  m_wpWeatherRouting->SetSizer(page_sizer);
+  m_wpWeatherRouting->Layout();
+
+  m_pages.Insert(m_wpWeatherRouting, 2);
+  RelinkPages();
+}
+
 void FirstUseWizImpl::RelinkPages() {
   for (unsigned int i = 0; i < m_pages.GetCount(); ++i) {
     m_pages.Item(i)->SetPrev(i == 0 ? nullptr : m_pages.Item(i - 1));
@@ -343,6 +473,22 @@ BoatProfile FirstUseWizImpl::ReadBoatProfilePage() const {
   profile.air_draft_m = m_scBoatAirDraft->GetValue();
   profile.cruising_speed_kn = m_scBoatCruisingSpeed->GetValue();
   profile.max_speed_kn = m_scBoatMaxSpeed->GetValue();
+  if (m_cWeatherProvider)
+    profile.weather_provider = m_cWeatherProvider->GetStringSelection();
+  if (m_cWeatherModel)
+    profile.weather_model = m_cWeatherModel->GetStringSelection();
+  if (m_tcWeatherGribDirectory)
+    profile.weather_grib_directory = m_tcWeatherGribDirectory->GetValue();
+  if (m_scWeatherForecastHours)
+    profile.weather_forecast_hours = m_scWeatherForecastHours->GetValue();
+  if (m_scWeatherStepHours)
+    profile.weather_step_hours = m_scWeatherStepHours->GetValue();
+  if (m_scWeatherGridSpacing)
+    profile.weather_grid_spacing_deg = m_scWeatherGridSpacing->GetValue();
+  if (m_cbWeatherIncludeGusts)
+    profile.weather_include_gusts = m_cbWeatherIncludeGusts->GetValue();
+  if (m_cbWeatherIncludeWaves)
+    profile.weather_include_waves = m_cbWeatherIncludeWaves->GetValue();
 
   return profile;
 }

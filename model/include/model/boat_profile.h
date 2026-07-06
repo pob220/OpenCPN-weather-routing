@@ -12,8 +12,18 @@ struct BoatProfile {
   double beam_m = 0.0;
   double draft_m = 0.0;
   double air_draft_m = 0.0;
+  wxString vessel_type = "Cruising sailboat";
+  double displacement_t = 0.0;
+  double sail_area_m2 = 0.0;
   double cruising_speed_kn = 0.0;
   double max_speed_kn = 0.0;
+  double motoring_speed_kn = 0.0;
+  double engine_consumption_lph = 0.0;
+  wxString polar_file;
+  double upwind_twa_deg = 45.0;
+  double downwind_twa_deg = 150.0;
+  double min_routing_wind_kn = 0.0;
+  double max_routing_wind_kn = 40.0;
   double current_grid_spacing_deg = 0.05;
   int current_duration_hours = 24;
   int current_step_hours = 1;

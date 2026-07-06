@@ -28,6 +28,10 @@
 #include <wx/wx.h>
 #endif
 
+#include <wx/listbox.h>
+#include <wx/scrolwin.h>
+#include <wx/spinctrl.h>
+
 #include "config.h"
 #include "toolbar.h"
 
@@ -87,6 +91,428 @@ wxString EllipsizeProfileLabel(wxWindow* win, const wxString& label,
   }
   return ellipsis;
 }
+
+wxString BoatProfileValidationMessage(const BoatProfileValidation& validation) {
+  wxString message;
+  for (const auto& error : validation.errors) {
+    if (!message.empty()) message += "\n";
+    message += error;
+  }
+  return message;
+}
+
+wxSpinCtrlDouble* AddProfileDoubleField(wxWindow* parent,
+                                        wxFlexGridSizer* grid,
+                                        const wxString& label, double min,
+                                        double max, double increment,
+                                        int digits,
+                                        const wxString& unit_label) {
+  grid->Add(new wxStaticText(parent, wxID_ANY, label), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  auto* ctrl = new wxSpinCtrlDouble(parent, wxID_ANY, wxEmptyString,
+                                    wxDefaultPosition, wxDefaultSize,
+                                    wxSP_ARROW_KEYS, min, max, 0.0,
+                                    increment);
+  ctrl->SetDigits(digits);
+  grid->Add(ctrl, 0, wxEXPAND | wxALL, 5);
+  grid->Add(new wxStaticText(parent, wxID_ANY, unit_label), 0,
+            wxALIGN_CENTER_VERTICAL | wxALL, 5);
+  return ctrl;
+}
+
+class BoatProfileManagerDialog : public wxDialog {
+public:
+  BoatProfileManagerDialog(wxWindow* parent, bool create_new)
+      : wxDialog(parent, wxID_ANY, _("Manage Boat Profiles"),
+                 wxDefaultPosition, wxSize(760, 620),
+                 wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER) {
+    auto& service = BoatProfileService::Get();
+    service.EnsureActiveProfile(_("My Boat"));
+    m_profiles = service.GetProfiles();
+    m_activeProfileId = service.GetActiveProfileId();
+
+    if (create_new) AddNewProfile(false);
+    CreateControls();
+    RefreshProfileList();
+    int selection = create_new ? static_cast<int>(m_profiles.size()) - 1
+                               : FindProfileIndex(m_activeProfileId);
+    if (selection == wxNOT_FOUND && !m_profiles.empty()) selection = 0;
+    SelectProfile(selection);
+  }
+
+private:
+  void CreateControls() {
+    auto* topSizer = new wxBoxSizer(wxVERTICAL);
+    auto* mainSizer = new wxBoxSizer(wxHORIZONTAL);
+    SetSizer(topSizer);
+
+    auto* listSizer = new wxBoxSizer(wxVERTICAL);
+    m_profileList = new wxListBox(this, wxID_ANY);
+    m_profileList->Bind(wxEVT_LISTBOX, &BoatProfileManagerDialog::OnSelect,
+                        this);
+    listSizer->Add(m_profileList, 1, wxEXPAND | wxALL, 5);
+
+    auto* newButton = new wxButton(this, wxID_ANY, _("New"));
+    auto* duplicateButton = new wxButton(this, wxID_ANY, _("Duplicate"));
+    auto* deleteButton = new wxButton(this, wxID_ANY, _("Delete"));
+    auto* activeButton = new wxButton(this, wxID_ANY, _("Set Active"));
+    newButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+      if (SaveEditorToCurrent(true)) AddNewProfile();
+    });
+    duplicateButton->Bind(wxEVT_BUTTON,
+                          &BoatProfileManagerDialog::OnDuplicate, this);
+    deleteButton->Bind(wxEVT_BUTTON, &BoatProfileManagerDialog::OnDelete, this);
+    activeButton->Bind(wxEVT_BUTTON, &BoatProfileManagerDialog::OnSetActive,
+                       this);
+    listSizer->Add(newButton, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 5);
+    listSizer->Add(duplicateButton, 0,
+                   wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 5);
+    listSizer->Add(deleteButton, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 5);
+    listSizer->Add(activeButton, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 5);
+    mainSizer->Add(listSizer, 0, wxEXPAND | wxALL, 8);
+
+    m_editor = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition,
+                                    wxDefaultSize, wxVSCROLL | wxTAB_TRAVERSAL);
+    m_editor->SetScrollRate(5, 5);
+    auto* editorSizer = new wxBoxSizer(wxVERTICAL);
+    m_editor->SetSizer(editorSizer);
+
+    auto* identityBox =
+        new wxStaticBoxSizer(wxVERTICAL, m_editor, _("Profile"));
+    auto* identityParent = identityBox->GetStaticBox();
+    auto* identityGrid = new wxFlexGridSizer(0, 2, 0, 0);
+    identityGrid->AddGrowableCol(1, 1);
+    identityGrid->Add(new wxStaticText(identityParent, wxID_ANY, _("Name")), 0,
+                      wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    m_name = new wxTextCtrl(identityParent, wxID_ANY);
+    identityGrid->Add(m_name, 0, wxEXPAND | wxALL, 5);
+    identityGrid->Add(
+        new wxStaticText(identityParent, wxID_ANY, _("Vessel type")), 0,
+        wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    wxArrayString vesselTypes;
+    vesselTypes.Add(_("Cruising sailboat"));
+    vesselTypes.Add(_("Racing sailboat"));
+    vesselTypes.Add(_("Catamaran"));
+    vesselTypes.Add(_("Motor vessel"));
+    vesselTypes.Add(_("Other"));
+    m_vesselType = new wxChoice(identityParent, wxID_ANY, wxDefaultPosition,
+                                wxDefaultSize, vesselTypes);
+    identityGrid->Add(m_vesselType, 0, wxEXPAND | wxALL, 5);
+    identityBox->Add(identityGrid, 0, wxEXPAND | wxALL, 5);
+    editorSizer->Add(identityBox, 0, wxEXPAND | wxALL, 5);
+
+    auto* dimensionsBox =
+        new wxStaticBoxSizer(wxVERTICAL, m_editor, _("Dimensions"));
+    auto* dimensionsParent = dimensionsBox->GetStaticBox();
+    auto* dimensionsGrid = new wxFlexGridSizer(0, 3, 0, 0);
+    dimensionsGrid->AddGrowableCol(1, 1);
+    m_length = AddProfileDoubleField(dimensionsParent, dimensionsGrid,
+                                     _("Length"), 0.1, 500.0, 0.1, 2, _("m"));
+    m_beam = AddProfileDoubleField(dimensionsParent, dimensionsGrid, _("Beam"),
+                                   0.1, 100.0, 0.1, 2, _("m"));
+    m_draft = AddProfileDoubleField(dimensionsParent, dimensionsGrid,
+                                    _("Draft"), 0.1, 100.0, 0.1, 2, _("m"));
+    m_airDraft = AddProfileDoubleField(dimensionsParent, dimensionsGrid,
+                                       _("Air draft"), 0.1, 200.0, 0.1, 2,
+                                       _("m"));
+    m_displacement = AddProfileDoubleField(
+        dimensionsParent, dimensionsGrid, _("Displacement"), 0.0, 1000.0, 0.1,
+        2, _("t"));
+    m_sailArea = AddProfileDoubleField(dimensionsParent, dimensionsGrid,
+                                       _("Sail area"), 0.0, 5000.0, 1.0, 1,
+                                       _("m2"));
+    dimensionsBox->Add(dimensionsGrid, 0, wxEXPAND | wxALL, 5);
+    editorSizer->Add(dimensionsBox, 0, wxEXPAND | wxALL, 5);
+
+    auto* routingBox =
+        new wxStaticBoxSizer(wxVERTICAL, m_editor, _("Weather routing"));
+    auto* routingParent = routingBox->GetStaticBox();
+    auto* routingGrid = new wxFlexGridSizer(0, 3, 0, 0);
+    routingGrid->AddGrowableCol(1, 1);
+    m_cruisingSpeed = AddProfileDoubleField(
+        routingParent, routingGrid, _("Cruising speed"), 0.1, 200.0, 0.1, 2,
+        _("kn"));
+    m_maxSpeed = AddProfileDoubleField(routingParent, routingGrid,
+                                       _("Maximum speed"), 0.0, 300.0, 0.1, 2,
+                                       _("kn"));
+    m_motoringSpeed = AddProfileDoubleField(
+        routingParent, routingGrid, _("Motoring speed"), 0.0, 200.0, 0.1, 2,
+        _("kn"));
+    m_engineConsumption = AddProfileDoubleField(
+        routingParent, routingGrid, _("Engine consumption"), 0.0, 200.0, 0.1,
+        2, _("l/h"));
+    m_upwindAngle = AddProfileDoubleField(
+        routingParent, routingGrid, _("Best upwind angle"), 0.0, 180.0, 1.0,
+        0, _("deg"));
+    m_downwindAngle = AddProfileDoubleField(
+        routingParent, routingGrid, _("Best downwind angle"), 0.0, 180.0, 1.0,
+        0, _("deg"));
+    m_minWind = AddProfileDoubleField(routingParent, routingGrid,
+                                      _("Minimum routing wind"), 0.0, 200.0,
+                                      0.5, 1, _("kn"));
+    m_maxWind = AddProfileDoubleField(routingParent, routingGrid,
+                                      _("Maximum routing wind"), 0.0, 200.0,
+                                      0.5, 1, _("kn"));
+    routingGrid->Add(new wxStaticText(routingParent, wxID_ANY, _("Polar file")),
+                     0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    m_polarFile = new wxTextCtrl(routingParent, wxID_ANY);
+    routingGrid->Add(m_polarFile, 0, wxEXPAND | wxALL, 5);
+    routingGrid->AddSpacer(1);
+    routingBox->Add(routingGrid, 0, wxEXPAND | wxALL, 5);
+    editorSizer->Add(routingBox, 0, wxEXPAND | wxALL, 5);
+
+    auto* currentsBox =
+        new wxStaticBoxSizer(wxVERTICAL, m_editor, _("Currents and data"));
+    auto* currentsParent = currentsBox->GetStaticBox();
+    auto* currentsGrid = new wxFlexGridSizer(0, 3, 0, 0);
+    currentsGrid->AddGrowableCol(1, 1);
+    m_currentGrid = AddProfileDoubleField(
+        currentsParent, currentsGrid, _("Current grid spacing"), 0.001, 5.0,
+        0.01, 3, _("deg"));
+    currentsGrid->Add(new wxStaticText(currentsParent, wxID_ANY,
+                                       _("Current forecast duration")),
+                      0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    m_currentDuration = new wxSpinCtrl(currentsParent, wxID_ANY, wxEmptyString,
+                                       wxDefaultPosition, wxDefaultSize,
+                                       wxSP_ARROW_KEYS, 1, 720, 24);
+    currentsGrid->Add(m_currentDuration, 0, wxEXPAND | wxALL, 5);
+    currentsGrid->Add(new wxStaticText(currentsParent, wxID_ANY, _("hours")),
+                      0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    currentsGrid->Add(new wxStaticText(currentsParent, wxID_ANY,
+                                       _("Current forecast step")),
+                      0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    m_currentStep = new wxSpinCtrl(currentsParent, wxID_ANY, wxEmptyString,
+                                   wxDefaultPosition, wxDefaultSize,
+                                   wxSP_ARROW_KEYS, 1, 72, 1);
+    currentsGrid->Add(m_currentStep, 0, wxEXPAND | wxALL, 5);
+    currentsGrid->Add(new wxStaticText(currentsParent, wxID_ANY, _("hours")),
+                      0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    currentsGrid->Add(
+        new wxStaticText(currentsParent, wxID_ANY, _("Current provider")), 0,
+        wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    m_currentProvider = new wxTextCtrl(currentsParent, wxID_ANY);
+    currentsGrid->Add(m_currentProvider, 0, wxEXPAND | wxALL, 5);
+    currentsGrid->AddSpacer(1);
+    currentsGrid->Add(
+        new wxStaticText(currentsParent, wxID_ANY, _("Data directory")), 0,
+        wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    m_dataDirectory = new wxTextCtrl(currentsParent, wxID_ANY);
+    currentsGrid->Add(m_dataDirectory, 0, wxEXPAND | wxALL, 5);
+    currentsGrid->AddSpacer(1);
+    currentsBox->Add(currentsGrid, 0, wxEXPAND | wxALL, 5);
+    editorSizer->Add(currentsBox, 0, wxEXPAND | wxALL, 5);
+
+    auto* notesBox = new wxStaticBoxSizer(wxVERTICAL, m_editor, _("Notes"));
+    m_notes = new wxTextCtrl(notesBox->GetStaticBox(), wxID_ANY, wxEmptyString,
+                             wxDefaultPosition, wxSize(-1, 90),
+                             wxTE_MULTILINE);
+    notesBox->Add(m_notes, 1, wxEXPAND | wxALL, 5);
+    editorSizer->Add(notesBox, 0, wxEXPAND | wxALL, 5);
+
+    mainSizer->Add(m_editor, 1, wxEXPAND | wxALL, 8);
+    topSizer->Add(mainSizer, 1, wxEXPAND);
+
+    auto* buttons = new wxBoxSizer(wxHORIZONTAL);
+    auto* saveButton = new wxButton(this, wxID_SAVE, _("Save"));
+    auto* closeButton = new wxButton(this, wxID_CANCEL, _("Close"));
+    saveButton->Bind(wxEVT_BUTTON, &BoatProfileManagerDialog::OnSave, this);
+    buttons->AddStretchSpacer(1);
+    buttons->Add(saveButton, 0, wxALL, 5);
+    buttons->Add(closeButton, 0, wxALL, 5);
+    topSizer->Add(buttons, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
+  }
+
+  int FindProfileIndex(const wxString& id) const {
+    for (size_t i = 0; i < m_profiles.size(); ++i) {
+      if (m_profiles[i].id == id) return static_cast<int>(i);
+    }
+    return wxNOT_FOUND;
+  }
+
+  void RefreshProfileList() {
+    if (!m_profileList) return;
+    m_profileList->Clear();
+    for (const auto& profile : m_profiles) {
+      wxString label = profile.name.empty() ? _("Unnamed Boat") : profile.name;
+      if (profile.id == m_activeProfileId) label += _(" (active)");
+      m_profileList->Append(label);
+    }
+  }
+
+  bool SaveEditorToCurrent(bool show_errors) {
+    if (m_selectedIndex == wxNOT_FOUND ||
+        m_selectedIndex >= static_cast<int>(m_profiles.size()))
+      return true;
+    BoatProfile profile = ReadEditor(m_profiles[m_selectedIndex]);
+    auto validation = BoatProfileStore::Validate(profile);
+    if (!validation.ok) {
+      if (show_errors)
+        wxMessageBox(BoatProfileValidationMessage(validation),
+                     _("Boat Profile"), wxOK | wxICON_WARNING, this);
+      return false;
+    }
+    m_profiles[m_selectedIndex] = profile;
+    return true;
+  }
+
+  BoatProfile ReadEditor(BoatProfile profile) const {
+    wxString name = m_name->GetValue();
+    profile.name = name.Trim(false).Trim();
+    if (profile.id.empty()) profile.id = BoatProfileStore::NewProfileId();
+    profile.vessel_type = m_vesselType->GetStringSelection();
+    if (profile.vessel_type.empty()) profile.vessel_type = "Other";
+    profile.length_m = m_length->GetValue();
+    profile.beam_m = m_beam->GetValue();
+    profile.draft_m = m_draft->GetValue();
+    profile.air_draft_m = m_airDraft->GetValue();
+    profile.displacement_t = m_displacement->GetValue();
+    profile.sail_area_m2 = m_sailArea->GetValue();
+    profile.cruising_speed_kn = m_cruisingSpeed->GetValue();
+    profile.max_speed_kn = m_maxSpeed->GetValue();
+    profile.motoring_speed_kn = m_motoringSpeed->GetValue();
+    profile.engine_consumption_lph = m_engineConsumption->GetValue();
+    profile.polar_file = m_polarFile->GetValue();
+    profile.upwind_twa_deg = m_upwindAngle->GetValue();
+    profile.downwind_twa_deg = m_downwindAngle->GetValue();
+    profile.min_routing_wind_kn = m_minWind->GetValue();
+    profile.max_routing_wind_kn = m_maxWind->GetValue();
+    profile.current_grid_spacing_deg = m_currentGrid->GetValue();
+    profile.current_duration_hours = m_currentDuration->GetValue();
+    profile.current_step_hours = m_currentStep->GetValue();
+    profile.current_provider = m_currentProvider->GetValue();
+    profile.data_directory = m_dataDirectory->GetValue();
+    profile.notes = m_notes->GetValue();
+    return profile;
+  }
+
+  void LoadEditor(const BoatProfile& profile) {
+    m_name->SetValue(profile.name);
+    int vesselIndex = m_vesselType->FindString(profile.vessel_type);
+    if (vesselIndex == wxNOT_FOUND) vesselIndex = m_vesselType->FindString("Other");
+    m_vesselType->SetSelection(vesselIndex);
+    m_length->SetValue(profile.length_m);
+    m_beam->SetValue(profile.beam_m);
+    m_draft->SetValue(profile.draft_m);
+    m_airDraft->SetValue(profile.air_draft_m);
+    m_displacement->SetValue(profile.displacement_t);
+    m_sailArea->SetValue(profile.sail_area_m2);
+    m_cruisingSpeed->SetValue(profile.cruising_speed_kn);
+    m_maxSpeed->SetValue(profile.max_speed_kn);
+    m_motoringSpeed->SetValue(profile.motoring_speed_kn);
+    m_engineConsumption->SetValue(profile.engine_consumption_lph);
+    m_polarFile->SetValue(profile.polar_file);
+    m_upwindAngle->SetValue(profile.upwind_twa_deg);
+    m_downwindAngle->SetValue(profile.downwind_twa_deg);
+    m_minWind->SetValue(profile.min_routing_wind_kn);
+    m_maxWind->SetValue(profile.max_routing_wind_kn);
+    m_currentGrid->SetValue(profile.current_grid_spacing_deg);
+    m_currentDuration->SetValue(profile.current_duration_hours);
+    m_currentStep->SetValue(profile.current_step_hours);
+    m_currentProvider->SetValue(profile.current_provider);
+    m_dataDirectory->SetValue(profile.data_directory);
+    m_notes->SetValue(profile.notes);
+  }
+
+  void SelectProfile(int index) {
+    if (index == wxNOT_FOUND || index >= static_cast<int>(m_profiles.size()))
+      return;
+    m_selectedIndex = index;
+    m_profileList->SetSelection(index);
+    LoadEditor(m_profiles[index]);
+  }
+
+  void AddNewProfile(bool refresh = true) {
+    BoatProfile profile = BoatProfileStore::CreateFromCurrentSettings(
+        wxString::Format(_("Boat %u"),
+                         static_cast<unsigned>(m_profiles.size()) + 1));
+    profile.id = BoatProfileStore::NewProfileId();
+    m_profiles.push_back(profile);
+    if (m_activeProfileId.empty()) m_activeProfileId = profile.id;
+    if (refresh) {
+      RefreshProfileList();
+      SelectProfile(static_cast<int>(m_profiles.size()) - 1);
+    }
+  }
+
+  void OnSelect(wxCommandEvent& event) {
+    if (!SaveEditorToCurrent(true)) {
+      m_profileList->SetSelection(m_selectedIndex);
+      return;
+    }
+    RefreshProfileList();
+    SelectProfile(event.GetSelection());
+  }
+
+  void OnDuplicate(wxCommandEvent&) {
+    if (!SaveEditorToCurrent(true) || m_selectedIndex == wxNOT_FOUND) return;
+    BoatProfile profile = m_profiles[m_selectedIndex];
+    profile.id = BoatProfileStore::NewProfileId();
+    profile.name += _(" Copy");
+    m_profiles.push_back(profile);
+    RefreshProfileList();
+    SelectProfile(static_cast<int>(m_profiles.size()) - 1);
+  }
+
+  void OnDelete(wxCommandEvent&) {
+    if (m_selectedIndex == wxNOT_FOUND || m_profiles.size() <= 1) {
+      wxMessageBox(_("At least one boat profile is required."),
+                   _("Boat Profile"), wxOK | wxICON_WARNING, this);
+      return;
+    }
+    wxString id = m_profiles[m_selectedIndex].id;
+    m_profiles.erase(m_profiles.begin() + m_selectedIndex);
+    if (m_activeProfileId == id) m_activeProfileId = m_profiles.front().id;
+    RefreshProfileList();
+    SelectProfile(wxMin(m_selectedIndex, static_cast<int>(m_profiles.size()) - 1));
+  }
+
+  void OnSetActive(wxCommandEvent&) {
+    if (!SaveEditorToCurrent(true) || m_selectedIndex == wxNOT_FOUND) return;
+    m_activeProfileId = m_profiles[m_selectedIndex].id;
+    RefreshProfileList();
+    SelectProfile(m_selectedIndex);
+  }
+
+  void OnSave(wxCommandEvent&) {
+    if (!SaveEditorToCurrent(true)) return;
+    wxString error;
+    if (!BoatProfileService::Get().SetProfiles(m_profiles, m_activeProfileId,
+                                               &error)) {
+      wxMessageBox(error, _("Boat Profile"), wxOK | wxICON_WARNING, this);
+      return;
+    }
+    EndModal(wxID_OK);
+  }
+
+  std::vector<BoatProfile> m_profiles;
+  wxString m_activeProfileId;
+  int m_selectedIndex = wxNOT_FOUND;
+  wxListBox* m_profileList = nullptr;
+  wxScrolledWindow* m_editor = nullptr;
+  wxTextCtrl* m_name = nullptr;
+  wxChoice* m_vesselType = nullptr;
+  wxSpinCtrlDouble* m_length = nullptr;
+  wxSpinCtrlDouble* m_beam = nullptr;
+  wxSpinCtrlDouble* m_draft = nullptr;
+  wxSpinCtrlDouble* m_airDraft = nullptr;
+  wxSpinCtrlDouble* m_displacement = nullptr;
+  wxSpinCtrlDouble* m_sailArea = nullptr;
+  wxSpinCtrlDouble* m_cruisingSpeed = nullptr;
+  wxSpinCtrlDouble* m_maxSpeed = nullptr;
+  wxSpinCtrlDouble* m_motoringSpeed = nullptr;
+  wxSpinCtrlDouble* m_engineConsumption = nullptr;
+  wxTextCtrl* m_polarFile = nullptr;
+  wxSpinCtrlDouble* m_upwindAngle = nullptr;
+  wxSpinCtrlDouble* m_downwindAngle = nullptr;
+  wxSpinCtrlDouble* m_minWind = nullptr;
+  wxSpinCtrlDouble* m_maxWind = nullptr;
+  wxSpinCtrlDouble* m_currentGrid = nullptr;
+  wxSpinCtrl* m_currentDuration = nullptr;
+  wxSpinCtrl* m_currentStep = nullptr;
+  wxTextCtrl* m_currentProvider = nullptr;
+  wxTextCtrl* m_dataDirectory = nullptr;
+  wxTextCtrl* m_notes = nullptr;
+};
 }
 
 class ocpnToolBarTool : public wxToolBarToolBase {
@@ -863,21 +1289,11 @@ void ocpnFloatingToolbarDialog::OnBoatProfileChoice(wxCommandEvent &event) {
     }
 
     if (event.GetId() == ID_PROFILE_MANAGE) {
-      wxMessageBox(_("Full Boat Profile management is not available yet. "
-                    "Create a new profile here, or use onboarding to refine "
-                    "the active profile. OpenCPN import is available from "
-                    "General settings."),
-                   _("Manage Boat Profiles"), wxOK | wxICON_INFORMATION,
-                   wxTheApp->GetTopWindow());
+      BoatProfileManagerDialog dlg(wxTheApp->GetTopWindow(), false);
+      dlg.ShowModal();
     } else if (event.GetId() == ID_PROFILE_CREATE) {
-      BoatProfile profile = BoatProfileStore::CreateFromCurrentSettings(
-          wxString::Format(_("Boat %u"),
-                           (unsigned)service.GetProfiles().size() + 1));
-      if (service.AddProfile(profile, &error))
-        service.SetActiveProfile(profile.id, &error);
-      if (!error.empty())
-        wxMessageBox(error, _("Boat Profile"), wxOK | wxICON_WARNING,
-                     wxTheApp->GetTopWindow());
+      BoatProfileManagerDialog dlg(wxTheApp->GetTopWindow(), true);
+      dlg.ShowModal();
     }
 
     RefreshBoatProfileChoice();

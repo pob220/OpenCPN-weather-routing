@@ -68,8 +68,18 @@ wxJSONValue ToJson(const BoatProfile& profile) {
   value["beam_m"] = profile.beam_m;
   value["draft_m"] = profile.draft_m;
   value["air_draft_m"] = profile.air_draft_m;
+  value["vessel_type"] = profile.vessel_type;
+  value["displacement_t"] = profile.displacement_t;
+  value["sail_area_m2"] = profile.sail_area_m2;
   value["cruising_speed_kn"] = profile.cruising_speed_kn;
   value["max_speed_kn"] = profile.max_speed_kn;
+  value["motoring_speed_kn"] = profile.motoring_speed_kn;
+  value["engine_consumption_lph"] = profile.engine_consumption_lph;
+  value["polar_file"] = profile.polar_file;
+  value["upwind_twa_deg"] = profile.upwind_twa_deg;
+  value["downwind_twa_deg"] = profile.downwind_twa_deg;
+  value["min_routing_wind_kn"] = profile.min_routing_wind_kn;
+  value["max_routing_wind_kn"] = profile.max_routing_wind_kn;
   value["current_grid_spacing_deg"] = profile.current_grid_spacing_deg;
   value["current_duration_hours"] = profile.current_duration_hours;
   value["current_step_hours"] = profile.current_step_hours;
@@ -87,8 +97,20 @@ BoatProfile FromJson(const wxJSONValue& value) {
   profile.beam_m = ReadDouble(value, "beam_m");
   profile.draft_m = ReadDouble(value, "draft_m");
   profile.air_draft_m = ReadDouble(value, "air_draft_m");
+  profile.vessel_type =
+      ReadString(value, "vessel_type", "Cruising sailboat");
+  profile.displacement_t = ReadDouble(value, "displacement_t");
+  profile.sail_area_m2 = ReadDouble(value, "sail_area_m2");
   profile.cruising_speed_kn = ReadDouble(value, "cruising_speed_kn");
   profile.max_speed_kn = ReadDouble(value, "max_speed_kn");
+  profile.motoring_speed_kn = ReadDouble(value, "motoring_speed_kn");
+  profile.engine_consumption_lph =
+      ReadDouble(value, "engine_consumption_lph");
+  profile.polar_file = ReadString(value, "polar_file");
+  profile.upwind_twa_deg = ReadDouble(value, "upwind_twa_deg", 45.0);
+  profile.downwind_twa_deg = ReadDouble(value, "downwind_twa_deg", 150.0);
+  profile.min_routing_wind_kn = ReadDouble(value, "min_routing_wind_kn");
+  profile.max_routing_wind_kn = ReadDouble(value, "max_routing_wind_kn", 40.0);
   profile.current_grid_spacing_deg =
       ReadDouble(value, "current_grid_spacing_deg", 0.05);
   profile.current_duration_hours = ReadInt(value, "current_duration_hours", 24);
@@ -149,8 +171,17 @@ BoatProfile BoatProfileStore::CreateDefaultProfile(const wxString& name) {
   profile.beam_m = 3.2;
   profile.draft_m = 1.5;
   profile.air_draft_m = 12.0;
+  profile.vessel_type = "Cruising sailboat";
+  profile.displacement_t = 6.0;
+  profile.sail_area_m2 = 45.0;
   profile.cruising_speed_kn = 6.0;
   profile.max_speed_kn = 8.0;
+  profile.motoring_speed_kn = 5.5;
+  profile.engine_consumption_lph = 2.5;
+  profile.upwind_twa_deg = 45.0;
+  profile.downwind_twa_deg = 150.0;
+  profile.min_routing_wind_kn = 3.0;
+  profile.max_routing_wind_kn = 40.0;
   profile.current_grid_spacing_deg = 0.05;
   profile.current_duration_hours = 24;
   profile.current_step_hours = 1;
@@ -187,6 +218,10 @@ BoatProfileValidation BoatProfileStore::Validate(const BoatProfile& profile) {
   if (!IsPositive(profile.draft_m)) add_error("Draft must be positive.");
   if (!IsPositive(profile.air_draft_m))
     add_error("Air draft must be positive.");
+  if (profile.displacement_t < 0.0)
+    add_error("Displacement cannot be negative.");
+  if (profile.sail_area_m2 < 0.0)
+    add_error("Sail area cannot be negative.");
   if (!IsPositive(profile.cruising_speed_kn))
     add_error("Cruising speed must be positive.");
   if (profile.max_speed_kn < 0.0)
@@ -194,6 +229,18 @@ BoatProfileValidation BoatProfileStore::Validate(const BoatProfile& profile) {
   if (profile.max_speed_kn > 0.0 &&
       profile.max_speed_kn < profile.cruising_speed_kn)
     add_error("Maximum speed cannot be less than cruising speed.");
+  if (profile.motoring_speed_kn < 0.0)
+    add_error("Motoring speed cannot be negative.");
+  if (profile.engine_consumption_lph < 0.0)
+    add_error("Engine consumption cannot be negative.");
+  if (profile.upwind_twa_deg < 0.0 || profile.upwind_twa_deg > 180.0)
+    add_error("Upwind true wind angle must be between 0 and 180 degrees.");
+  if (profile.downwind_twa_deg < 0.0 || profile.downwind_twa_deg > 180.0)
+    add_error("Downwind true wind angle must be between 0 and 180 degrees.");
+  if (profile.max_routing_wind_kn < profile.min_routing_wind_kn)
+    add_error("Maximum routing wind cannot be less than minimum routing wind.");
+  if (profile.min_routing_wind_kn < 0.0)
+    add_error("Minimum routing wind cannot be negative.");
   if (!IsPositive(profile.current_grid_spacing_deg))
     add_error("Current grid spacing must be positive.");
   if (profile.current_duration_hours <= 0)

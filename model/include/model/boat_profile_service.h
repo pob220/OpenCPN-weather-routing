@@ -25,6 +25,10 @@ public:
 
   bool AddProfile(const BoatProfile& profile, wxString* error = nullptr);
   bool UpdateProfile(const BoatProfile& profile, wxString* error = nullptr);
+  bool DeleteProfile(const wxString& id, wxString* error = nullptr);
+  bool SetProfiles(const std::vector<BoatProfile>& profiles,
+                   const wxString& active_profile_id,
+                   wxString* error = nullptr);
   bool SetActiveProfile(const wxString& id, wxString* error = nullptr);
 
   int AddListener(Listener listener);

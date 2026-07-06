@@ -63,6 +63,24 @@ bool BoatProfileService::UpdateProfile(const BoatProfile& profile,
   return true;
 }
 
+bool BoatProfileService::DeleteProfile(const wxString& id, wxString* error) {
+  if (!m_loaded && !Load(error)) return false;
+  if (!m_store.DeleteProfile(id, error)) return false;
+  if (!m_store.Save(error)) return false;
+  NotifyActiveProfileChanged();
+  return true;
+}
+
+bool BoatProfileService::SetProfiles(const std::vector<BoatProfile>& profiles,
+                                     const wxString& active_profile_id,
+                                     wxString* error) {
+  if (!m_loaded && !Load(error)) return false;
+  if (!m_store.SetProfiles(profiles, active_profile_id, error)) return false;
+  if (!m_store.Save(error)) return false;
+  NotifyActiveProfileChanged();
+  return true;
+}
+
 bool BoatProfileService::SetActiveProfile(const wxString& id, wxString* error) {
   if (!m_loaded && !Load(error)) return false;
   if (!m_store.SetActiveProfile(id, error)) return false;

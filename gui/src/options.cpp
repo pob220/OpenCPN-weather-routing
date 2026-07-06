@@ -83,6 +83,7 @@
 #include "model/ais_decoder.h"
 #include "model/ais_state_vars.h"
 #include "model/ais_target_data.h"
+#include "model/boat_profile_service.h"
 #include "model/cmdline.h"
 #include "model/comm_drv_factory.h"
 #include "model/comm_util.h"
@@ -1642,6 +1643,7 @@ void options::Init() {
   m_pageCharts = -1;
   m_pageShips = -1;
   m_pageUI = -1;
+  m_pageCurrentGrib = -1;
   m_pagePlugins = -1;
   m_pageConnections = -1;
 
@@ -5533,6 +5535,294 @@ public:
   }
 };
 
+void options::CreatePanel_CurrentGrib(size_t parent, int border_size,
+                                      int group_item_spacing) {
+  wxScrolledWindow* panel = AddPage(parent, _("Settings"));
+  auto* top = new wxBoxSizer(wxVERTICAL);
+  panel->SetSizer(top);
+
+  auto* profileBox = new wxStaticBox(panel, wxID_ANY, _("Active boat profile"));
+  auto* profileSizer = new wxStaticBoxSizer(profileBox, wxVERTICAL);
+  top->Add(profileSizer, 0, wxEXPAND | wxALL, border_size);
+
+  m_currentGribProfileSummary =
+      new wxTextCtrl(panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                     wxDefaultSize, wxTE_READONLY | wxTE_MULTILINE);
+  m_currentGribProfileSummary->SetMinSize(wxSize(-1, 92));
+  profileSizer->Add(m_currentGribProfileSummary, 0,
+                    wxEXPAND | wxALL, group_item_spacing);
+
+  auto* sourceBox = new wxStaticBox(panel, wxID_ANY, _("Current source"));
+  auto* sourceSizer = new wxStaticBoxSizer(sourceBox, wxVERTICAL);
+  top->Add(sourceSizer, 0, wxEXPAND | wxALL, border_size);
+  auto* sourceGrid = new wxFlexGridSizer(0, 2, group_item_spacing,
+                                         group_item_spacing);
+  sourceGrid->AddGrowableCol(1);
+  sourceSizer->Add(sourceGrid, 0, wxEXPAND | wxALL, border_size);
+
+  wxArrayString providers;
+  providers.Add("auto");
+  providers.Add("marine_ie_irish_sea");
+  providers.Add("copernicus_nws");
+  providers.Add("copernicus_global");
+  providers.Add("tpxo");
+  providers.Add("netcdf");
+  providers.Add("synthetic");
+  sourceGrid->Add(new wxStaticText(panel, wxID_ANY, _("Provider")), 0,
+                  wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_currentGribProviderChoice =
+      new wxChoice(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                   providers);
+  sourceGrid->Add(m_currentGribProviderChoice, 0,
+                  wxEXPAND | wxALL, group_item_spacing);
+
+  sourceGrid->Add(new wxStaticText(panel, wxID_ANY, _("Output directory")), 0,
+                  wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_currentGribOutputDir = new wxTextCtrl(panel, wxID_ANY);
+  sourceGrid->Add(m_currentGribOutputDir, 0,
+                  wxEXPAND | wxALL, group_item_spacing);
+
+  sourceGrid->Add(new wxStaticText(panel, wxID_ANY, _("Download directory")), 0,
+                  wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_currentGribDownloadDir = new wxTextCtrl(panel, wxID_ANY);
+  sourceGrid->Add(m_currentGribDownloadDir, 0,
+                  wxEXPAND | wxALL, group_item_spacing);
+
+  sourceGrid->Add(new wxStaticText(panel, wxID_ANY, _("TPXO model directory")),
+                  0, wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_currentGribTpxoModelDir = new wxTextCtrl(panel, wxID_ANY);
+  sourceGrid->Add(m_currentGribTpxoModelDir, 0,
+                  wxEXPAND | wxALL, group_item_spacing);
+
+  auto* routingBox =
+      new wxStaticBox(panel, wxID_ANY, _("Weather routing current grid"));
+  auto* routingSizer = new wxStaticBoxSizer(routingBox, wxVERTICAL);
+  top->Add(routingSizer, 0, wxEXPAND | wxALL, border_size);
+  auto* routingGrid = new wxFlexGridSizer(0, 3, group_item_spacing,
+                                          group_item_spacing);
+  routingGrid->AddGrowableCol(1);
+  routingSizer->Add(routingGrid, 0, wxEXPAND | wxALL, border_size);
+
+  routingGrid->Add(new wxStaticText(panel, wxID_ANY, _("Grid spacing")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_currentGribGridSpacing =
+      new wxSpinCtrlDouble(panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                           wxDefaultSize, wxSP_ARROW_KEYS, 0.001, 5.0, 0.05,
+                           0.01);
+  m_currentGribGridSpacing->SetDigits(3);
+  routingGrid->Add(m_currentGribGridSpacing, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  routingGrid->Add(new wxStaticText(panel, wxID_ANY, _("deg")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+
+  routingGrid->Add(new wxStaticText(panel, wxID_ANY, _("Forecast duration")),
+                   0, wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_currentGribDurationHours =
+      new wxSpinCtrl(panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                     wxDefaultSize, wxSP_ARROW_KEYS, 1, 720, 72);
+  routingGrid->Add(m_currentGribDurationHours, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  routingGrid->Add(new wxStaticText(panel, wxID_ANY, _("hours")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+
+  routingGrid->Add(new wxStaticText(panel, wxID_ANY, _("Forecast step")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+  m_currentGribStepHours =
+      new wxSpinCtrl(panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                     wxDefaultSize, wxSP_ARROW_KEYS, 1, 72, 1);
+  routingGrid->Add(m_currentGribStepHours, 0,
+                   wxEXPAND | wxALL, group_item_spacing);
+  routingGrid->Add(new wxStaticText(panel, wxID_ANY, _("hours")), 0,
+                   wxALIGN_CENTER_VERTICAL | wxALL, group_item_spacing);
+
+  auto* backendBox =
+      new wxStaticBox(panel, wxID_ANY, _("Bundled generator backend"));
+  auto* backendSizer = new wxStaticBoxSizer(backendBox, wxVERTICAL);
+  top->Add(backendSizer, 1, wxEXPAND | wxALL, border_size);
+  wxFileName backendPath(wxStandardPaths::Get().GetDataDir(), "");
+  backendPath.AppendDir("currentgrib_generator");
+  auto* backendSource =
+      new wxTextCtrl(panel, wxID_ANY, backendPath.GetPath(), wxDefaultPosition,
+                     wxDefaultSize, wxTE_READONLY);
+  backendSizer->Add(backendSource, 0, wxEXPAND | wxALL, group_item_spacing);
+  m_currentGribCommandPreview =
+      new wxTextCtrl(panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                     wxDefaultSize, wxTE_READONLY | wxTE_MULTILINE);
+  m_currentGribCommandPreview->SetMinSize(wxSize(-1, 96));
+  backendSizer->Add(m_currentGribCommandPreview, 1,
+                    wxEXPAND | wxALL, group_item_spacing);
+
+  auto updatePreview = [this](wxCommandEvent&) {
+    UpdateCurrentGribCommandPreview();
+  };
+  m_currentGribProviderChoice->Bind(wxEVT_CHOICE, updatePreview);
+  m_currentGribGridSpacing->Bind(wxEVT_SPINCTRLDOUBLE, updatePreview);
+  m_currentGribDurationHours->Bind(wxEVT_SPINCTRL, updatePreview);
+  m_currentGribStepHours->Bind(wxEVT_SPINCTRL, updatePreview);
+  m_currentGribOutputDir->Bind(wxEVT_TEXT, updatePreview);
+  m_currentGribDownloadDir->Bind(wxEVT_TEXT, updatePreview);
+  m_currentGribTpxoModelDir->Bind(wxEVT_TEXT, updatePreview);
+
+  LoadCurrentGribSettings();
+  UpdateCurrentGribBoatProfileSummary();
+  UpdateCurrentGribCommandPreview();
+}
+
+void options::LoadCurrentGribSettings() {
+  if (!m_currentGribProviderChoice) return;
+
+  wxString error;
+  auto& profileService = BoatProfileService::Get();
+  profileService.EnsureActiveProfile(_("My Boat"), &error);
+  const BoatProfile* profile = profileService.GetActiveProfile();
+
+  wxString defaultProvider = profile ? profile->current_provider : "auto";
+  if (defaultProvider.empty()) defaultProvider = "auto";
+
+  wxFileName defaultOutput(wxStandardPaths::Get().GetUserDataDir(), "");
+  defaultOutput.AppendDir("grib");
+  defaultOutput.AppendDir("generated");
+  wxString outputDir =
+      profile && !profile->data_directory.empty() ? profile->data_directory
+                                                  : defaultOutput.GetPath();
+
+  wxFileName defaultDownload(outputDir, "");
+  defaultDownload.AppendDir("downloads");
+  wxFileName defaultTpxo(wxGetHomeDir(), "");
+  defaultTpxo.AppendDir("OpenCPN");
+  defaultTpxo.AppendDir("tide-models");
+
+  double gridSpacing = profile ? profile->current_grid_spacing_deg : 0.05;
+  int durationHours = profile ? profile->current_duration_hours : 72;
+  int stepHours = profile ? profile->current_step_hours : 1;
+
+  if (m_pConfig) {
+    m_pConfig->SetPath("/Settings/CurrentGRIB");
+    m_pConfig->Read("Provider", &defaultProvider, defaultProvider);
+    m_pConfig->Read("OutputDirectory", &outputDir, outputDir);
+    wxString downloadDir = defaultDownload.GetPath();
+    wxString tpxoDir = defaultTpxo.GetPath();
+    m_pConfig->Read("DownloadDirectory", &downloadDir, downloadDir);
+    m_pConfig->Read("TpxoModelDirectory", &tpxoDir, tpxoDir);
+    m_pConfig->Read("GridSpacingDeg", &gridSpacing, gridSpacing);
+    long longValue = durationHours;
+    m_pConfig->Read("DurationHours", &longValue, longValue);
+    durationHours = static_cast<int>(longValue);
+    longValue = stepHours;
+    m_pConfig->Read("StepHours", &longValue, longValue);
+    stepHours = static_cast<int>(longValue);
+    m_currentGribDownloadDir->SetValue(downloadDir);
+    m_currentGribTpxoModelDir->SetValue(tpxoDir);
+  } else {
+    m_currentGribDownloadDir->SetValue(defaultDownload.GetPath());
+    m_currentGribTpxoModelDir->SetValue(defaultTpxo.GetPath());
+  }
+
+  int providerIndex = m_currentGribProviderChoice->FindString(defaultProvider);
+  if (providerIndex == wxNOT_FOUND) providerIndex = 0;
+  m_currentGribProviderChoice->SetSelection(providerIndex);
+  m_currentGribOutputDir->SetValue(outputDir);
+  m_currentGribGridSpacing->SetValue(wxMax(0.001, gridSpacing));
+  m_currentGribDurationHours->SetValue(wxMax(1, durationHours));
+  m_currentGribStepHours->SetValue(wxMax(1, stepHours));
+}
+
+void options::SaveCurrentGribSettings() {
+  if (!m_pConfig || !m_currentGribProviderChoice) return;
+
+  m_pConfig->SetPath("/Settings/CurrentGRIB");
+  m_pConfig->Write("Provider",
+                   m_currentGribProviderChoice->GetStringSelection());
+  m_pConfig->Write("OutputDirectory", m_currentGribOutputDir->GetValue());
+  m_pConfig->Write("DownloadDirectory", m_currentGribDownloadDir->GetValue());
+  m_pConfig->Write("TpxoModelDirectory", m_currentGribTpxoModelDir->GetValue());
+  m_pConfig->Write("GridSpacingDeg", m_currentGribGridSpacing->GetValue());
+  m_pConfig->Write("DurationHours",
+                   static_cast<long>(m_currentGribDurationHours->GetValue()));
+  m_pConfig->Write("StepHours",
+                   static_cast<long>(m_currentGribStepHours->GetValue()));
+}
+
+wxString options::BuildCurrentGribCommandPreview() const {
+  if (!m_currentGribProviderChoice) return wxEmptyString;
+
+  wxFileName backendPath(wxStandardPaths::Get().GetDataDir(), "");
+  backendPath.AppendDir("currentgrib_generator");
+
+#ifdef __WXMSW__
+  wxString python = "py -3";
+  wxString envPrefix = "set PYTHONPATH=\"" + backendPath.GetPath() + "\" && ";
+#else
+  wxString python = "python3";
+  wxString envPrefix = "PYTHONPATH=\"" + backendPath.GetPath() + "\" ";
+#endif
+
+  wxString provider = m_currentGribProviderChoice->GetStringSelection();
+  wxFileName output(m_currentGribOutputDir->GetValue(), "");
+  output.SetFullName("current_from_boat_profile.grb");
+
+  wxString command = envPrefix + python + " -m tidal_current_grib_generator.cli";
+  if (provider == "marine_ie_irish_sea") {
+    command += " generate-provider --provider marine_ie_irish_sea";
+  } else if (provider == "tpxo") {
+    command += " generate --source tpxo --model-dir \"" +
+               m_currentGribTpxoModelDir->GetValue() + "\"";
+  } else if (provider == "netcdf") {
+    command += " generate --source netcdf --input-netcdf <current-file.nc>";
+  } else if (provider == "synthetic") {
+    command += " generate --source synthetic";
+  } else {
+    command += " generate-copernicus --provider " + provider +
+               " --download-directory \"" +
+               m_currentGribDownloadDir->GetValue() + "\"";
+  }
+
+  command += wxString::Format(" --hours %d --step-hours %d",
+                              m_currentGribDurationHours->GetValue(),
+                              m_currentGribStepHours->GetValue());
+  if (provider != "marine_ie_irish_sea") {
+    command += wxString::Format(" --grid-spacing-deg %.3f",
+                                m_currentGribGridSpacing->GetValue());
+  }
+  command += " --output \"" + output.GetFullPath() + "\" --metadata-summary";
+  return command;
+}
+
+void options::UpdateCurrentGribBoatProfileSummary() {
+  if (!m_currentGribProfileSummary) return;
+
+  wxString error;
+  auto& profileService = BoatProfileService::Get();
+  profileService.EnsureActiveProfile(_("My Boat"), &error);
+  const BoatProfile* profile = profileService.GetActiveProfile();
+  if (!profile) {
+    m_currentGribProfileSummary->SetValue(_("No active boat profile."));
+    return;
+  }
+
+  wxString summary;
+  summary << _("Name") << ": " << profile->name << "\n";
+  summary << _("Cruising speed") << ": "
+          << wxString::Format("%.2f kn", profile->cruising_speed_kn) << "\n";
+  summary << _("Routing wind range") << ": "
+          << wxString::Format("%.1f-%.1f kn", profile->min_routing_wind_kn,
+                              profile->max_routing_wind_kn)
+          << "\n";
+  summary << _("Current grid") << ": "
+          << wxString::Format("%.3f deg, %d h, %d h step",
+                              profile->current_grid_spacing_deg,
+                              profile->current_duration_hours,
+                              profile->current_step_hours)
+          << "\n";
+  summary << _("Current provider") << ": " << profile->current_provider;
+  m_currentGribProfileSummary->SetValue(summary);
+}
+
+void options::UpdateCurrentGribCommandPreview() {
+  if (m_currentGribCommandPreview)
+    m_currentGribCommandPreview->SetValue(BuildCurrentGribCommandPreview());
+}
+
 void options::CreatePanel_UI(size_t parent, int border_size,
                              int group_item_spacing) {
   wxScrolledWindow* itemPanelFont = AddPage(parent, _("General Options"));
@@ -5872,6 +6162,7 @@ void options::CreateListbookIcons() {
     m_topImgList->Add(style->GetIcon("Charts", sx, sy));
     m_topImgList->Add(style->GetIcon("Connections", sx, sy));
     m_topImgList->Add(style->GetIcon("Ship", sx, sy));
+    m_topImgList->Add(style->GetIcon("Charts", sx, sy));
     m_topImgList->Add(style->GetIcon("UI", sx, sy));
     m_topImgList->Add(style->GetIcon("Plugins", sx, sy));
 #else
@@ -5893,6 +6184,11 @@ void options::CreateListbookIcons() {
     bmp = wxBitmap(img);
     m_topImgList->Add(bmp);
     bmp = style->GetIcon("Ship");
+    img = bmp.ConvertToImage();
+    img.ConvertAlphaToMask(128);
+    bmp = wxBitmap(img);
+    m_topImgList->Add(bmp);
+    bmp = style->GetIcon("Charts");
     img = bmp.ConvertToImage();
     img.ConvertAlphaToMask(128);
     bmp = wxBitmap(img);
@@ -5950,6 +6246,11 @@ void options::CreateListbookIcons() {
     bmp = wxBitmap(simg);
     m_topImgList->Add(bmp);
     bmp = style->GetIcon("Ship");
+    img = bmp.ConvertToImage();
+    simg = img.Scale(sizeTab, sizeTab);
+    bmp = wxBitmap(simg);
+    m_topImgList->Add(bmp);
+    bmp = style->GetIcon("Charts");
     img = bmp.ConvertToImage();
     simg = img.Scale(sizeTab, sizeTab);
     bmp = wxBitmap(simg);
@@ -6138,6 +6439,9 @@ void options::CreateControls() {
   CreatePanel_MMSI(m_pageShips, border_size, group_item_spacing);
 
   CreatePanel_Routes(m_pageShips, border_size, group_item_spacing);
+
+  m_pageCurrentGrib = CreatePanel(_("Current GRIB"));
+  CreatePanel_CurrentGrib(m_pageCurrentGrib, border_size, group_item_spacing);
 
   wxString UITab = _("User Interface");
   if (g_Platform->GetDisplayDIPMult(wxTheApp->GetTopWindow()) < 1)
@@ -6627,6 +6931,8 @@ void options::SetInitialSettings() {
   delete m_pSerialArray;
   m_pSerialArray = NULL;
   m_pSerialArray = EnumerateSerialPorts();
+  UpdateCurrentGribBoatProfileSummary();
+  UpdateCurrentGribCommandPreview();
   m_bForceNewToolbaronCancel = false;
 }
 
@@ -7204,6 +7510,8 @@ void options::ApplyChanges(wxCommandEvent& event) {
   g_bShowShipToActive = pShowshipToActive->GetValue();
   g_shipToActiveStyle = m_shipToActiveStyle->GetSelection();
   g_shipToActiveColor = m_shipToActiveColor->GetSelection();
+
+  SaveCurrentGribSettings();
 
   m_pText_ACRadius->GetValue().ToDouble(&g_n_arrival_circle_radius);
   g_n_arrival_circle_radius =

@@ -1738,6 +1738,11 @@ if (OCPN_BUNDLE_TCDATA)
   )
 endif ()
 
+install(
+  DIRECTORY data/currentgrib_generator
+  DESTINATION ${PREFIX_PKGDATA}
+)
+
 # Mac has trouble finding libgobject - 2.0.dylib We look for it explicitely
 if (xAPPLE)
   # Assume pkg-config is available.

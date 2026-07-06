@@ -407,7 +407,7 @@ public:
   wxBoxSizer *m_OK_Cancel_Apply_buttons;
 
   size_t m_pageDisplay, m_pageConnections, m_pageCharts, m_pageShips;
-  size_t m_pageUI, m_pagePlugins;
+  size_t m_pageCurrentGrib, m_pageUI, m_pagePlugins;
   int lastPage, lastSubPage;
   wxPoint lastWindowPos;
   wxSize lastWindowSize;
@@ -670,6 +670,13 @@ private:
                            int group_item_spacing);
   void CreatePanel_Routes(size_t parent, int border_size,
                           int group_item_spacing);
+  void CreatePanel_CurrentGrib(size_t parent, int border_size,
+                               int group_item_spacing);
+  void LoadCurrentGribSettings();
+  void SaveCurrentGribSettings();
+  wxString BuildCurrentGribCommandPreview() const;
+  void UpdateCurrentGribBoatProfileSummary();
+  void UpdateCurrentGribCommandPreview();
 
   void OnAlertEnableButtonClick(wxCommandEvent &event);
   void OnAlertAudioEnableButtonClick(wxCommandEvent &event);
@@ -684,6 +691,15 @@ private:
   std::vector<int> marinersStdXref;
   ChartGroupsUI *groupsPanel;
   wxImageList *m_topImgList;
+  wxChoice *m_currentGribProviderChoice;
+  wxSpinCtrlDouble *m_currentGribGridSpacing;
+  wxSpinCtrl *m_currentGribDurationHours;
+  wxSpinCtrl *m_currentGribStepHours;
+  wxTextCtrl *m_currentGribOutputDir;
+  wxTextCtrl *m_currentGribDownloadDir;
+  wxTextCtrl *m_currentGribTpxoModelDir;
+  wxTextCtrl *m_currentGribProfileSummary;
+  wxTextCtrl *m_currentGribCommandPreview;
 
   wxCheckBox *m_persist_active_route_chkbox;
   wxScrolledWindow *m_pNMEAForm;

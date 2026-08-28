@@ -3666,6 +3666,8 @@ size_t SegmentSafetyGridCacheSize() {
 
 void RecordUnexpectedSegmentSafetyTileBuild(SegmentSafetyCoreStats* stats,
                                             long lat_tile, long lon_tile);
+bool SegmentSafetyCachedTileProviderIsCurrent(
+    const CachedPointSafetyGridTile& tile);
 
 bool EnsureSegmentSafetyGridTile(long lat_tile, long lon_tile,
                                  SegmentSafetyCoreStats* stats,
@@ -3712,7 +3714,8 @@ bool EnsureSegmentSafetyGridTile(long lat_tile, long lon_tile,
 
   CachedPointSafetyGridTile external_tile;
   if (SegmentSafetyExternalTileCacheLookup(
-          lat_tile, lon_tile, require_depth, &external_tile)) {
+          lat_tile, lon_tile, require_depth, &external_tile) &&
+      SegmentSafetyCachedTileProviderIsCurrent(external_tile)) {
     StoreSegmentSafetyGridTile(key, external_tile);
     if (stats) ++stats->grid_cache_hits;
     return true;
@@ -3735,7 +3738,8 @@ bool EnsureSegmentSafetyGridTile(long lat_tile, long lon_tile,
         if (found_persistent) ++s_segment_safety_persistent_base_tiles_used;
       }
     }
-    if (found_persistent) {
+    if (found_persistent &&
+        SegmentSafetyCachedTileProviderIsCurrent(persistent_tile)) {
       StoreSegmentSafetyGridTile(key, persistent_tile);
       if (stats) ++stats->grid_cache_hits;
       return true;
@@ -4806,6 +4810,87 @@ std::vector<SegmentSafetyChartCandidate> SegmentSafetySortedChartCandidates(
   std::sort(candidates.begin(), candidates.end(),
             SegmentSafetyChartCandidateLess);
   return candidates;
+}
+
+bool SegmentSafetyCachedTileProviderIsCurrent(
+    const CachedPointSafetyGridTile& tile) {
+  if (!tile.built || tile.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR)
+    return true;
+
+  // A chart-set identity change invalidates the complete persistent store,
+  // but provider availability can change while the same chart database is in
+  // use (for example, enabling o-charts after a CM93-only run).  Probe the
+  // centre and corners of the cached tile.  If current chart selection prefers
+  // a different provider class anywhere in the tile, rebuild it instead of
+  // allowing stale lower-priority evidence to satisfy an authoritative query.
+  const double inset = wxMax(tile.resolution * 0.5, 1e-6);
+  const double min_lat = tile.min_lat + inset;
+  const double min_lon = tile.min_lon + inset;
+  const double max_lat =
+      tile.min_lat + kSegmentSafetyGridTileDegrees - inset;
+  const double max_lon =
+      tile.min_lon + kSegmentSafetyGridTileDegrees - inset;
+  const double samples[][2] = {
+      {(min_lat + max_lat) / 2.0, (min_lon + max_lon) / 2.0},
+      {min_lat, min_lon},
+      {min_lat, max_lon},
+      {max_lat, min_lon},
+      {max_lat, max_lon},
+  };
+
+  for (size_t i = 0; i < WXSIZEOF(samples); ++i) {
+    std::set<int> chart_indexes;
+    SegmentSafetyCandidateChartsAt(samples[i][0], samples[i][1],
+                                   chart_indexes, NULL);
+
+    // The common no-o-chart case should remain a cheap cache hit.  Opening
+    // charts is only necessary when the chart table contains a provider class
+    // which could supersede the cached source at this sample.
+    bool provider_may_differ = false;
+    for (std::set<int>::const_iterator it = chart_indexes.begin();
+         it != chart_indexes.end(); ++it) {
+      if (!ChartData || *it < 0 || *it >= ChartData->GetChartTableEntries())
+        continue;
+      const ChartTypeEnum type = (ChartTypeEnum)
+          ChartData->GetChartTableEntry(*it).GetChartType();
+      if (tile.source == PI_SEGMENT_SAFETY_SOURCE_CM93) {
+        provider_may_differ =
+            type != CHART_TYPE_CM93 && type != CHART_TYPE_CM93COMP;
+      } else if (tile.source == PI_SEGMENT_SAFETY_SOURCE_VECTOR_CHART) {
+        provider_may_differ = type == CHART_TYPE_PLUGIN;
+      } else {
+        provider_may_differ = true;
+      }
+      if (provider_may_differ) break;
+    }
+    if (!provider_may_differ) continue;
+
+    const std::vector<SegmentSafetyChartCandidate> candidates =
+        SegmentSafetySortedChartCandidates(samples[i][0], samples[i][1],
+                                           chart_indexes);
+    if (candidates.empty()) continue;
+    const PlugInSegmentSafetySource preferred_source =
+        candidates.front().plugin_vector
+            ? PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR
+            : (candidates.front().cm93
+                   ? PI_SEGMENT_SAFETY_SOURCE_CM93
+                   : PI_SEGMENT_SAFETY_SOURCE_VECTOR_CHART);
+    if (preferred_source == tile.source) continue;
+
+    static long provider_rejection_logs = 0;
+    if (provider_rejection_logs < 20) {
+      ++provider_rejection_logs;
+      wxLogMessage(
+          "WR_CACHED_TILE_PROVIDER_REJECT #%ld tile=(%ld,%ld) "
+          "cached_source=%d preferred_source=%d sample=(%.8f,%.8f) "
+          "cached_chart_path=\"%s\" preferred_chart_path=\"%s\"",
+          provider_rejection_logs, tile.lat_tile, tile.lon_tile,
+          (int)tile.source, (int)preferred_source, samples[i][0],
+          samples[i][1], tile.chart_path, candidates.front().path.c_str());
+    }
+    return false;
+  }
+  return true;
 }
 
 SegmentSafetyPointClass ChartPluginPointSafetyClassAtRaw(

@@ -4724,8 +4724,12 @@ void SegmentSafetyCandidateChartsAt(double lat, double lon,
     ChartFamilyEnum family =
         (ChartFamilyEnum)ChartData->GetCSChartFamily(&stack, i);
     ChartTypeEnum type = (ChartTypeEnum)ChartData->GetCSChartType(&stack, i);
-    if (family == CHART_FAMILY_VECTOR || type == CHART_TYPE_CM93 ||
-        type == CHART_TYPE_CM93COMP) {
+    // GetCSChartFamily() derives family from the built-in chart type and
+    // returns UNKNOWN for CHART_TYPE_PLUGIN, even when the chart-table entry
+    // records a vector family.  Keep plugin entries here and validate the
+    // opened wrapper in SegmentSafetySortedChartCandidates().
+    if (family == CHART_FAMILY_VECTOR || type == CHART_TYPE_PLUGIN ||
+        type == CHART_TYPE_CM93 || type == CHART_TYPE_CM93COMP) {
       chart_indexes.insert(db_index);
     } else if (family == CHART_FAMILY_RASTER) {
       if (stats) ++stats->raster_chart_count;

@@ -4690,14 +4690,60 @@ void RunSegmentSafetyDiagnostics() {
         holyhead_water.Find("source=PLUGIN_VECTOR") != wxNOT_FOUND &&
         holyhead_water.Find("class=WATER_OR_NO_UNSAFE_AREA") != wxNOT_FOUND &&
         holyhead_water.Find("has_depth=1") != wxNOT_FOUND;
+    PlugInSegmentSafetyOptions land_options = {};
+    land_options.struct_size = sizeof(land_options);
+    land_options.check_land = 1;
+    land_options.allow_gshhs_fallback = 0;
+    land_options.force_authoritative_fine_validation = 1;
+    PlugInSegmentSafetyResult land_result = {};
+    land_result.struct_size = sizeof(land_result);
+    const bool land_segment_ok = PlugIn_CheckSegmentSafety(
+        53.300000, -4.680000, 53.300000, -4.680000, &land_options,
+        &land_result);
+    const bool land_segment_pass =
+        land_segment_ok &&
+        SegmentSafetyStatusMatchesExpected(
+            land_result.status, PI_SEGMENT_SAFETY_CROSSES_LAND) &&
+        land_result.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
+
+    PlugInSegmentSafetyOptions depth_options = land_options;
+    depth_options.check_depth = 1;
+    depth_options.minimum_depth_m = 31.0;
+    PlugInSegmentSafetyResult depth_result = {};
+    depth_result.struct_size = sizeof(depth_result);
+    const bool depth_segment_ok = PlugIn_CheckSegmentSafety(
+        53.325000, -4.705000, 53.325000, -4.705000, &depth_options,
+        &depth_result);
+    const bool depth_segment_pass =
+        depth_segment_ok &&
+        depth_result.status == PI_SEGMENT_SAFETY_TOO_SHALLOW &&
+        depth_result.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
     if (!land_pass) ++failures;
     if (!water_depth_pass) ++failures;
+    if (!land_segment_pass) ++failures;
+    if (!depth_segment_pass) ++failures;
     wxLogMessage(
         "OCHART_SAFETY_SMOKE case=holy_island_land pass=%d %s",
         land_pass ? 1 : 0, holy_island_land.c_str());
     wxLogMessage(
         "OCHART_SAFETY_SMOKE case=holyhead_water_depth pass=%d %s",
         water_depth_pass ? 1 : 0, holyhead_water.c_str());
+    wxLogMessage(
+        "OCHART_SAFETY_SMOKE case=holy_island_route_reject pass=%d "
+        "status=%s source=%s chart_path=\"%s\" hit_object=\"%s\"",
+        land_segment_pass ? 1 : 0,
+        SegmentSafetyStatusName(land_result.status),
+        SegmentSafetySourceName(land_result.source), land_result.chart_path,
+        land_result.hit_object);
+    wxLogMessage(
+        "OCHART_SAFETY_SMOKE case=holyhead_depth_route_reject pass=%d "
+        "status=%s source=%s required_depth_m=%.2f min_depth_m=%.2f "
+        "depth_attr=\"%s\" chart_path=\"%s\"",
+        depth_segment_pass ? 1 : 0,
+        SegmentSafetyStatusName(depth_result.status),
+        SegmentSafetySourceName(depth_result.source),
+        depth_options.minimum_depth_m, depth_result.min_depth_m,
+        depth_result.depth_source_attribute, depth_result.chart_path);
     wxLogMessage("OCHART_SAFETY_SMOKE complete pass=%d failures=%d",
                  failures == 0 ? 1 : 0, failures);
     return;

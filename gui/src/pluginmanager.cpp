@@ -4369,6 +4369,12 @@ int PlugInManager::QueryPlugInChartSafetyGrid(
     }
     if (!provides_chart) continue;
 
+    {
+      wxLogNull suppress_missing_optional_symbol;
+      if (!pic->m_library.HasSymbol(
+              OCPN_PLUGIN_CHART_SAFETY_GRID_SYMBOL_V1))
+        return 0;
+    }
     OCPN_PluginChartSafetyGridFnV1 fn =
         reinterpret_cast<OCPN_PluginChartSafetyGridFnV1>(
             pic->m_library.GetSymbol(OCPN_PLUGIN_CHART_SAFETY_GRID_SYMBOL_V1));
@@ -4383,11 +4389,12 @@ int PlugInManager::QueryPlugInChartSafetyGrid(
 }
 
 bool PlugInManager::HasPlugInChartSafetyGrid() const {
+  wxLogNull suppress_missing_optional_symbols;
   auto plugin_array = PluginLoader::GetInstance()->GetPlugInArray();
   for (unsigned int i = 0; i < plugin_array->GetCount(); ++i) {
     PlugInContainer* pic = plugin_array->Item(i);
     if (pic && pic->m_enabled && pic->m_init_state &&
-        pic->m_library.GetSymbol(OCPN_PLUGIN_CHART_SAFETY_GRID_SYMBOL_V1))
+        pic->m_library.HasSymbol(OCPN_PLUGIN_CHART_SAFETY_GRID_SYMBOL_V1))
       return true;
   }
   return false;

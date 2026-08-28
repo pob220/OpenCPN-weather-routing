@@ -65,6 +65,7 @@
 #include "model/navobj_db.h"
 #include "model/notification_manager.h"
 #include "model/own_ship.h"
+#include "model/plugin_loader.h"
 #include "model/plugin_comm.h"
 #include "model/svg_utils.h"
 #include "model/route.h"
@@ -2558,6 +2559,29 @@ void SegmentSafetyHashAdd(uint64_t* hash, const wxString& text) {
   *hash *= 1099511628211ULL;
 }
 
+wxString SegmentSafetyPluginBatchProviderIdentity() {
+  wxArrayString providers;
+  wxLogNull suppress_missing_optional_symbols;
+  auto plugin_array = PluginLoader::GetInstance()->GetPlugInArray();
+  for (unsigned int i = 0; i < plugin_array->GetCount(); ++i) {
+    PlugInContainer* pic = plugin_array->Item(i);
+    if (!pic || !pic->m_enabled || !pic->m_init_state ||
+        !pic->m_library.HasSymbol(
+            OCPN_PLUGIN_CHART_SAFETY_GRID_SYMBOL_V1))
+      continue;
+    wxFileName file(pic->m_plugin_file);
+    const wxULongLong size = file.GetSize();
+    const wxDateTime modified = file.GetModificationTime();
+    providers.Add(wxString::Format(
+        "%s:size=%s:mtime=%lld:version=%s", pic->m_plugin_file,
+        size != wxInvalidSize ? size.ToString() : wxString("unknown"),
+        modified.IsValid() ? static_cast<long long>(modified.GetTicks()) : -1LL,
+        pic->m_version_str));
+  }
+  providers.Sort();
+  return wxJoin(providers, ';');
+}
+
 wxString SegmentSafetyChartIdentity() {
   if (!ChartData) return wxEmptyString;
 
@@ -2567,6 +2591,9 @@ wxString SegmentSafetyChartIdentity() {
                        wxString::Format("dbv=%d", ChartData->GetVersion()));
   SegmentSafetyHashAdd(
       &hash, wxString::Format("group=%d", SegmentSafetyCurrentGroupIndex()));
+  if (g_pi_manager)
+    SegmentSafetyHashAdd(
+        &hash, "batch-providers=" + SegmentSafetyPluginBatchProviderIdentity());
   int entries = ChartData->GetChartTableEntries();
   SegmentSafetyHashAdd(&hash, wxString::Format("entries=%d", entries));
   for (int i = 0; i < entries; ++i) {
@@ -2581,12 +2608,10 @@ wxString SegmentSafetyChartIdentity() {
     for (size_t j = 0; j < groups.size(); ++j)
       SegmentSafetyHashAdd(&hash, wxString::Format("g%d", groups[j]));
   }
-  // v3 invalidates raw tiles produced before CM93 DEPARE boundary recovery
-  // used independent authoritative point selection. The prepared tile view
-  // can itself omit a polygon exactly at a viewport boundary, so using it for
-  // both the original lookup and recovery preserved artificial unknown-depth
-  // seams in v2 tiles.
-  return wxString::Format("ocpn-chartdb-v3-%016llx", (unsigned long long)hash);
+  // v4 also includes the optional semantic provider binary identity. Upgrading
+  // or downgrading o-charts therefore invalidates both core and plugin-owned
+  // persistent tiles automatically, even when the chart database is unchanged.
+  return wxString::Format("ocpn-chartdb-v4-%016llx", (unsigned long long)hash);
 }
 
 void SegmentSafetyRefreshPersistentChartIdentity() {
@@ -4777,6 +4802,63 @@ bool SegmentSafetyChartCandidateLess(const SegmentSafetyChartCandidate& a,
   return a.db_index < b.db_index;
 }
 
+bool SegmentSafetyLongitudeRangesOverlap(double first_min, double first_max,
+                                         double second_min,
+                                         double second_max) {
+  for (int shift = -1; shift <= 1; ++shift) {
+    const double shifted_min = second_min + shift * 360.0;
+    const double shifted_max = second_max + shift * 360.0;
+    if (shifted_max >= first_min && shifted_min <= first_max) return true;
+  }
+  return false;
+}
+
+std::vector<SegmentSafetyChartCandidate>
+SegmentSafetyTileChartCandidates(double min_lat, double min_lon,
+                                 double max_lat, double max_lon) {
+  std::vector<SegmentSafetyChartCandidate> candidates;
+  if (!ChartData) return candidates;
+
+  const int group_index = SegmentSafetyCurrentGroupIndex();
+  const int entries = ChartData->GetChartTableEntries();
+  candidates.reserve(entries);
+  for (int db_index = 0; db_index < entries; ++db_index) {
+    ChartTableEntry& entry = ChartData->GetChartTableEntry(db_index);
+    const ChartTypeEnum type =
+        static_cast<ChartTypeEnum>(entry.GetChartType());
+    const ChartFamilyEnum family =
+        static_cast<ChartFamilyEnum>(entry.GetChartFamily());
+    const bool plugin_vector =
+        type == CHART_TYPE_PLUGIN && family == CHART_FAMILY_VECTOR;
+    const bool cm93 =
+        type == CHART_TYPE_CM93 || type == CHART_TYPE_CM93COMP;
+    if (!plugin_vector && !cm93 && family != CHART_FAMILY_VECTOR) continue;
+    if (ChartData->IsChartDirectoryExcluded(entry.GetFullPath())) continue;
+    if (!ChartData->IsChartInGroup(db_index, group_index)) continue;
+    if (type == CHART_TYPE_PLUGIN &&
+        !ChartData->IsChartAvailable(db_index))
+      continue;
+    if (entry.GetLatMax() < min_lat || entry.GetLatMin() > max_lat) continue;
+    if (!SegmentSafetyLongitudeRangesOverlap(
+            entry.GetLonMin(), entry.GetLonMax(), min_lon, max_lon))
+      continue;
+
+    SegmentSafetyChartCandidate candidate;
+    candidate.db_index = db_index;
+    candidate.provider_priority = cm93 ? 1 : 0;
+    candidate.native_scale = entry.GetScale();
+    candidate.edition_date = entry.GetChartEditionDate();
+    candidate.file_time = entry.GetFileTime();
+    candidate.plugin_vector = plugin_vector;
+    candidate.cm93 = cm93;
+    candidate.path = entry.GetFullPath();
+    candidates.push_back(candidate);
+  }
+  std::sort(candidates.begin(), candidates.end(),
+            SegmentSafetyChartCandidateLess);
+  return candidates;
+}
+
 std::vector<SegmentSafetyChartCandidate> SegmentSafetySortedChartCandidates(
     double lat, double lon, const std::set<int>& chart_indexes) {
   std::vector<SegmentSafetyChartCandidate> candidates;
@@ -5055,9 +5137,15 @@ SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
       SegmentSafetySortedChartCandidates(lat, lon, chart_indexes);
 
   bool chart_checked = false;
+  bool licensed_plugin_depth_missing = false;
   for (std::vector<SegmentSafetyChartCandidate>::const_iterator it =
            candidates.begin();
        it != candidates.end(); ++it) {
+    // Once the selected licensed chart has established ordinary water, later
+    // candidates may supply only its missing numeric depth.  Native/CM93
+    // charts use a different object path and must not replace the selected
+    // licensed chart's semantic classification.
+    if (licensed_plugin_depth_missing && !it->plugin_vector) break;
     ChartBase* chart =
         ChartData ? ChartData->OpenChartFromDB(it->db_index, FULL_INIT) : NULL;
     s57chart* s57 = dynamic_cast<s57chart*>(chart);
@@ -5065,10 +5153,68 @@ SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
         dynamic_cast<ChartPlugInWrapper*>(chart);
     if (!s57 && !(it->plugin_vector && plugin_wrapper)) continue;
     chart_checked = true;
-    if (it->plugin_vector && plugin_wrapper)
-      return ChartPluginPointSafetyClassAtRaw(
-          plugin_wrapper, *it, lat, lon, point_cache_key, source, stats,
-          result);
+    if (it->plugin_vector && plugin_wrapper) {
+      PlugInSegmentSafetyResult supplemental_result = {};
+      supplemental_result.struct_size = sizeof(supplemental_result);
+      InitSegmentSafetyResult(&supplemental_result);
+      PlugInSegmentSafetyResult* query_result =
+          licensed_plugin_depth_missing ? &supplemental_result : result;
+      const std::string query_cache_key =
+          licensed_plugin_depth_missing
+              ? point_cache_key + ":depth:" + std::to_string(it->db_index)
+              : point_cache_key;
+      const SegmentSafetyPointClass plugin_class =
+          ChartPluginPointSafetyClassAtRaw(
+              plugin_wrapper, *it, lat, lon, query_cache_key, source, stats,
+              query_result);
+      if (licensed_plugin_depth_missing) {
+        // This chart is consulted for depth only.  Land, drying and unknown
+        // danger semantics from a lower-priority chart cannot override the
+        // selected detailed chart; try the next licensed candidate instead.
+        if (plugin_class != SEGMENT_SAFETY_POINT_WATER ||
+            !supplemental_result.has_depth)
+          continue;
+        if (SegmentSafetyResultHas(
+                result,
+                offsetof(PlugInSegmentSafetyResult,
+                         depth_source_attribute),
+                sizeof(result->depth_source_attribute))) {
+          result->chart_db_index = supplemental_result.chart_db_index;
+          result->chart_scale = supplemental_result.chart_scale;
+          result->has_depth = 1;
+          result->min_depth_m = supplemental_result.min_depth_m;
+          CopySegmentSafetyString(result->chart_path,
+                                  sizeof(result->chart_path),
+                                  supplemental_result.chart_path);
+          CopySegmentSafetyString(result->depth_source_object,
+                                  sizeof(result->depth_source_object),
+                                  supplemental_result.depth_source_object);
+          CopySegmentSafetyString(result->depth_source_attribute,
+                                  sizeof(result->depth_source_attribute),
+                                  supplemental_result.depth_source_attribute);
+        }
+        StoreSegmentSafetyPointCache(
+            point_cache_key,
+            MakeSegmentSafetyPointCacheEntry(
+                SEGMENT_SAFETY_POINT_WATER,
+                PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR, it->db_index,
+                plugin_wrapper->GetNativeScale(),
+                plugin_wrapper->GetFullPath().mb_str(), "", true,
+                supplemental_result.min_depth_m, false,
+                supplemental_result.depth_source_object,
+                supplemental_result.depth_source_attribute));
+        return SEGMENT_SAFETY_POINT_WATER;
+      }
+      const bool plain_missing_depth =
+          plugin_class == SEGMENT_SAFETY_POINT_WATER && result &&
+          !result->has_depth && result->depth_source_attribute[0] == '\0';
+      if (!plain_missing_depth) return plugin_class;
+      // Retain the detailed chart's water classification while asking only
+      // later licensed/native vector charts for a numeric depth.  This is the
+      // legacy point-query equivalent of the batch depth supplementation.
+      licensed_plugin_depth_missing = true;
+      continue;
+    }
     bool cm93 = IsCm93Chart(chart);
     PlugInSegmentSafetySource chart_source =
         cm93 ? PI_SEGMENT_SAFETY_SOURCE_CM93
@@ -5189,6 +5335,9 @@ SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
             depth_object.mb_str(),
             depth_attribute.empty() ? nullptr
                                     : depth_attribute.mb_str().data()));
+    if (point_class == SEGMENT_SAFETY_POINT_WATER && !has_depth &&
+        !unknown_danger_depth)
+      continue;
     return point_class;
   }
 
@@ -5479,6 +5628,8 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
   const size_t grid_cell_count =
       static_cast<size_t>(tile.rows) * tile.cols;
   std::vector<uint8_t> plugin_batch_classified(grid_cell_count, 0);
+  std::vector<uint8_t> plugin_batch_unknown_danger(grid_cell_count, 0);
+  std::vector<std::vector<int> > plugin_depth_candidates(grid_cell_count);
   int plugin_batch_groups = 0;
   int plugin_batch_cells = 0;
   int plugin_batch_fallback_cells = 0;
@@ -5490,42 +5641,65 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
       g_pi_manager->HasPlugInChartSafetyGrid()) {
     wxStopWatch batch_select_timer;
     std::map<int, SegmentSafetyPluginBatchGroup> groups;
+    const double grid_max_lat =
+        tile.min_lat + (tile.rows - 1) * tile.resolution;
+    const double grid_max_lon =
+        tile.min_lon + (tile.cols - 1) * tile.resolution;
+    const std::vector<SegmentSafetyChartCandidate> tile_candidates =
+        SegmentSafetyTileChartCandidates(tile.min_lat, tile.min_lon,
+                                         grid_max_lat, grid_max_lon);
     for (int r = 0; r < tile.rows; ++r) {
       const double cell_lat = tile.min_lat + r * tile.resolution;
       for (int c = 0; c < tile.cols; ++c) {
         const double cell_lon = tile.min_lon + c * tile.resolution;
-        std::set<int> chart_indexes;
-        SegmentSafetyCandidateChartsAt(cell_lat, cell_lon, chart_indexes,
-                                       stats);
-        const std::vector<SegmentSafetyChartCandidate> candidates =
-            SegmentSafetySortedChartCandidates(cell_lat, cell_lon,
-                                               chart_indexes);
+        const size_t index = static_cast<size_t>(r) * tile.cols + c;
+        bool selected_plugin = false;
         for (std::vector<SegmentSafetyChartCandidate>::const_iterator it =
-                 candidates.begin();
-             it != candidates.end(); ++it) {
-          ChartBase* chart = ChartData->OpenChartFromDB(it->db_index, FULL_INIT);
-          ChartPlugInWrapper* wrapper =
-              dynamic_cast<ChartPlugInWrapper*>(chart);
-          if (it->plugin_vector && wrapper) {
-            std::map<int, SegmentSafetyPluginBatchGroup>::iterator found =
-                groups.find(it->db_index);
-            if (found == groups.end()) {
-              found = groups
-                          .insert(std::make_pair(
-                              it->db_index,
-                              SegmentSafetyPluginBatchGroup(grid_cell_count)))
-                          .first;
-              found->second.db_index = it->db_index;
-              found->second.wrapper = wrapper;
+                 tile_candidates.begin();
+             it != tile_candidates.end(); ++it) {
+          if (!ChartData->ChartCoversPosition(
+                  it->db_index, static_cast<float>(cell_lat),
+                  static_cast<float>(cell_lon)))
+            continue;
+          if (stats) ++stats->chart_stack_entries;
+          if (it->plugin_vector) {
+            plugin_depth_candidates[index].push_back(it->db_index);
+            if (!selected_plugin) {
+              std::map<int, SegmentSafetyPluginBatchGroup>::iterator found =
+                  groups.find(it->db_index);
+              if (found == groups.end()) {
+                found = groups
+                            .insert(std::make_pair(
+                                it->db_index,
+                                SegmentSafetyPluginBatchGroup(grid_cell_count)))
+                            .first;
+                found->second.db_index = it->db_index;
+              }
+              found->second.active[index] = 1;
+              ++found->second.active_count;
+              selected_plugin = true;
             }
-            const size_t index = static_cast<size_t>(r) * tile.cols + c;
-            found->second.active[index] = 1;
-            ++found->second.active_count;
-            break;
+            continue;
           }
-          if (dynamic_cast<s57chart*>(chart)) break;
+          // The sorted table metadata uses the same provider, native-scale,
+          // edition-date, file-time and path ordering as the point path.  A
+          // native vector chart therefore supersedes later plugin charts; CM93
+          // cannot, because it has the lower provider priority.
+          if (!it->cm93) break;
         }
       }
+    }
+
+    // Open only the plugin charts actually selected by at least one cell, and
+    // only once per tile.  Unsupported plugin-vector formats deliberately
+    // retain the exact point-query fallback below.
+    for (std::map<int, SegmentSafetyPluginBatchGroup>::iterator it =
+             groups.begin();
+         it != groups.end(); ++it) {
+      ChartBase* chart =
+          ChartData->OpenChartFromDB(it->second.db_index, FULL_INIT);
+      if (!IsSupportedSegmentSafetyPluginChart(chart)) continue;
+      it->second.wrapper = dynamic_cast<ChartPlugInWrapper*>(chart);
     }
     plugin_batch_select_ms = batch_select_timer.Time();
 
@@ -5587,6 +5761,8 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
         tile.hazard_summary_flags |= hazards;
         const bool depth_known = group.has_depth[index] &&
                                  !group.unknown_danger_depth[index];
+        plugin_batch_unknown_danger[index] =
+            group.unknown_danger_depth[index] ? 1 : 0;
         tile.has_depth[index] = depth_known ? 1 : 0;
         tile.min_depth_m[index] =
             depth_known ? group.min_depth_m[index] : 0.0f;
@@ -5598,6 +5774,104 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
         tile.chart_scale = group.wrapper->GetNativeScale();
         CopySegmentSafetyString(tile.chart_path, sizeof(tile.chart_path),
                                 group.wrapper->GetFullPath().mb_str());
+      }
+    }
+
+    // A detailed inset can legitimately cover a point without supplying a
+    // DEPARE there (most commonly on an M_COVR boundary).  Preserve its
+    // authoritative land/drying classification, but fill an otherwise
+    // unknown water depth from the next licensed chart in the same sorted
+    // priority chain.  An explicit danger object with unknown depth remains
+    // unknown and cannot be hidden by a smaller-scale chart.
+    size_t maximum_depth_candidate = 0;
+    for (size_t index = 0; index < grid_cell_count; ++index)
+      maximum_depth_candidate =
+          std::max(maximum_depth_candidate,
+                   plugin_depth_candidates[index].size());
+    for (size_t rank = 1; rank < maximum_depth_candidate; ++rank) {
+      std::map<int, SegmentSafetyPluginBatchGroup> fallback_groups;
+      for (size_t index = 0; index < grid_cell_count; ++index) {
+        if (!plugin_batch_classified[index] || tile.has_depth[index] ||
+            plugin_batch_unknown_danger[index] ||
+            tile.classes[index] != SEGMENT_SAFETY_POINT_WATER ||
+            plugin_depth_candidates[index].size() <= rank)
+          continue;
+        const int db_index = plugin_depth_candidates[index][rank];
+        std::map<int, SegmentSafetyPluginBatchGroup>::iterator found =
+            fallback_groups.find(db_index);
+        if (found == fallback_groups.end()) {
+          found = fallback_groups
+                      .insert(std::make_pair(
+                          db_index,
+                          SegmentSafetyPluginBatchGroup(grid_cell_count)))
+                      .first;
+          found->second.db_index = db_index;
+        }
+        found->second.active[index] = 1;
+        ++found->second.active_count;
+      }
+
+      for (std::map<int, SegmentSafetyPluginBatchGroup>::iterator it =
+               fallback_groups.begin();
+           it != fallback_groups.end(); ++it) {
+        ChartBase* chart =
+            ChartData->OpenChartFromDB(it->second.db_index, FULL_INIT);
+        if (!IsSupportedSegmentSafetyPluginChart(chart)) continue;
+        it->second.wrapper = dynamic_cast<ChartPlugInWrapper*>(chart);
+      }
+
+      for (std::map<int, SegmentSafetyPluginBatchGroup>::iterator it =
+               fallback_groups.begin();
+           it != fallback_groups.end(); ++it) {
+        SegmentSafetyPluginBatchGroup& group = it->second;
+        if (!group.wrapper || group.active_count <= 0) continue;
+        OCPN_PluginChartSafetyGridRequestV1 request = {};
+        request.struct_size = sizeof(request);
+        request.abi_version = OCPN_PLUGIN_CHART_SAFETY_GRID_ABI_V1;
+        request.min_lat = tile.min_lat;
+        request.min_lon = tile.min_lon;
+        request.lat_step = tile.resolution;
+        request.lon_step = tile.resolution;
+        request.rows = tile.rows;
+        request.cols = tile.cols;
+        request.select_radius_degrees = static_cast<float>(
+            kSegmentSafetyGridResolutionDegrees * 0.75);
+        request.active_cells = group.active.data();
+        request.visitor_context = &group;
+        request.visit_object = SegmentSafetyPluginBatchVisit;
+        OCPN_PluginChartSafetyGridResultV1 provider_result = {};
+        provider_result.struct_size = sizeof(provider_result);
+        const double centre_lat =
+            tile.min_lat + kSegmentSafetyGridTileDegrees / 2.0;
+        const double centre_lon =
+            tile.min_lon + kSegmentSafetyGridTileDegrees / 2.0;
+        const ViewPort vp =
+            SegmentSafetyHighestDetailViewPortAt(centre_lat, centre_lon);
+        const int status = g_pi_manager->QueryPlugInChartSafetyGrid(
+            group.wrapper, request, &provider_result, vp);
+        if (status != 1 ||
+            provider_result.abi_version !=
+                OCPN_PLUGIN_CHART_SAFETY_GRID_ABI_V1 ||
+            provider_result.processed_cells !=
+                static_cast<uint32_t>(group.active_count)) {
+          plugin_batch_fallback_cells += group.active_count;
+          continue;
+        }
+
+        ++plugin_batch_groups;
+        plugin_batch_cells += group.active_count;
+        plugin_batch_candidate_objects += provider_result.candidate_objects;
+        plugin_batch_hit_objects += provider_result.hit_objects;
+        for (size_t index = 0; index < grid_cell_count; ++index) {
+          if (!group.active[index]) continue;
+          if (group.land[index] || group.drying[index] ||
+              group.unknown_danger_depth[index])
+            continue;
+          if (group.has_depth[index]) {
+            tile.has_depth[index] = 1;
+            tile.min_depth_m[index] = group.min_depth_m[index];
+          }
+        }
       }
     }
     plugin_batch_query_ms = batch_query_timer.Time();

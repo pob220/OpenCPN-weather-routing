@@ -5368,6 +5368,75 @@ bool RecoverPreparedCm93BoundaryDepth(
   return true;
 }
 
+struct SegmentSafetyPluginBatchGroup {
+  int db_index;
+  ChartPlugInWrapper* wrapper;
+  std::vector<uint8_t> active;
+  std::vector<uint8_t> land;
+  std::vector<uint8_t> drying;
+  std::vector<uint8_t> has_depth;
+  std::vector<uint8_t> unknown_danger_depth;
+  std::vector<float> min_depth_m;
+  int active_count;
+
+  explicit SegmentSafetyPluginBatchGroup(size_t cells = 0)
+      : db_index(-1),
+        wrapper(NULL),
+        active(cells, 0),
+        land(cells, 0),
+        drying(cells, 0),
+        has_depth(cells, 0),
+        unknown_danger_depth(cells, 0),
+        min_depth_m(cells, 0.0f),
+        active_count(0) {}
+};
+
+void SegmentSafetyPluginBatchVisit(void* context, const void* object_ptr,
+                                   const uint64_t* hit_cells,
+                                   uint32_t hit_word_count) {
+  SegmentSafetyPluginBatchGroup* group =
+      static_cast<SegmentSafetyPluginBatchGroup*>(context);
+  PI_S57Obj* object =
+      const_cast<PI_S57Obj*>(static_cast<const PI_S57Obj*>(object_ptr));
+  if (!group || !object || !hit_cells) return;
+
+  const bool land = !strncmp(object->FeatureName, "LNDARE", 6) ||
+                    SegmentSafetyPluginObjectIsAlwaysDry(object);
+  const bool drying = SegmentSafetyPluginObjectIsDrying(object);
+  double depth_m = 0.0;
+  bool unknown_danger_depth = false;
+  const bool has_depth = SegmentSafetyPluginObjectDepthM(
+      object, &depth_m, NULL, &unknown_danger_depth);
+  if (!land && !drying && !has_depth && !unknown_danger_depth) return;
+
+  const size_t cells = group->active.size();
+  for (uint32_t word = 0; word < hit_word_count; ++word) {
+    uint64_t bits = hit_cells[word];
+    while (bits) {
+#if defined(__GNUC__) || defined(__clang__)
+      const unsigned bit = static_cast<unsigned>(__builtin_ctzll(bits));
+#else
+      unsigned bit = 0;
+      while (((bits >> bit) & 1u) == 0) ++bit;
+#endif
+      const size_t index = static_cast<size_t>(word) * 64 + bit;
+      if (index < cells && group->active[index]) {
+        if (land) group->land[index] = 1;
+        if (drying) group->drying[index] = 1;
+        if (has_depth &&
+            (!group->has_depth[index] ||
+             depth_m < group->min_depth_m[index])) {
+          group->has_depth[index] = 1;
+          group->min_depth_m[index] = static_cast<float>(depth_m);
+        }
+        if (unknown_danger_depth)
+          group->unknown_danger_depth[index] = 1;
+      }
+      bits &= bits - 1;
+    }
+  }
+}
+
 CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
     double lat, double lon, long lat_tile, long lon_tile,
     SegmentSafetyCoreStats* stats, bool require_depth) {
@@ -5400,6 +5469,139 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
   tile.min_depth_m.assign(tile.rows * tile.cols, 0.0f);
   tile.has_drying.assign(tile.rows * tile.cols, 0);
   tile.hazard_summary_flags = SEGMENT_SAFETY_HAZARD_NONE;
+
+  // Optional plugin-vector batch path.  Chart selection remains in OpenCPN:
+  // every cell is assigned to the same highest-detail/newest usable chart the
+  // point path would choose.  Each upgraded provider then walks its objects
+  // once and reports cell membership through the versioned C ABI.  If the
+  // symbol is absent, incomplete, or errors, those cells retain the exact
+  // point-query fallback below.
+  const size_t grid_cell_count =
+      static_cast<size_t>(tile.rows) * tile.cols;
+  std::vector<uint8_t> plugin_batch_classified(grid_cell_count, 0);
+  int plugin_batch_groups = 0;
+  int plugin_batch_cells = 0;
+  int plugin_batch_fallback_cells = 0;
+  int plugin_batch_candidate_objects = 0;
+  int plugin_batch_hit_objects = 0;
+  long plugin_batch_select_ms = 0;
+  long plugin_batch_query_ms = 0;
+  if (ChartData && g_pi_manager &&
+      g_pi_manager->HasPlugInChartSafetyGrid()) {
+    wxStopWatch batch_select_timer;
+    std::map<int, SegmentSafetyPluginBatchGroup> groups;
+    for (int r = 0; r < tile.rows; ++r) {
+      const double cell_lat = tile.min_lat + r * tile.resolution;
+      for (int c = 0; c < tile.cols; ++c) {
+        const double cell_lon = tile.min_lon + c * tile.resolution;
+        std::set<int> chart_indexes;
+        SegmentSafetyCandidateChartsAt(cell_lat, cell_lon, chart_indexes,
+                                       stats);
+        const std::vector<SegmentSafetyChartCandidate> candidates =
+            SegmentSafetySortedChartCandidates(cell_lat, cell_lon,
+                                               chart_indexes);
+        for (std::vector<SegmentSafetyChartCandidate>::const_iterator it =
+                 candidates.begin();
+             it != candidates.end(); ++it) {
+          ChartBase* chart = ChartData->OpenChartFromDB(it->db_index, FULL_INIT);
+          ChartPlugInWrapper* wrapper =
+              dynamic_cast<ChartPlugInWrapper*>(chart);
+          if (it->plugin_vector && wrapper) {
+            std::map<int, SegmentSafetyPluginBatchGroup>::iterator found =
+                groups.find(it->db_index);
+            if (found == groups.end()) {
+              found = groups
+                          .insert(std::make_pair(
+                              it->db_index,
+                              SegmentSafetyPluginBatchGroup(grid_cell_count)))
+                          .first;
+              found->second.db_index = it->db_index;
+              found->second.wrapper = wrapper;
+            }
+            const size_t index = static_cast<size_t>(r) * tile.cols + c;
+            found->second.active[index] = 1;
+            ++found->second.active_count;
+            break;
+          }
+          if (dynamic_cast<s57chart*>(chart)) break;
+        }
+      }
+    }
+    plugin_batch_select_ms = batch_select_timer.Time();
+
+    wxStopWatch batch_query_timer;
+    for (std::map<int, SegmentSafetyPluginBatchGroup>::iterator it =
+             groups.begin();
+         it != groups.end(); ++it) {
+      SegmentSafetyPluginBatchGroup& group = it->second;
+      if (!group.wrapper || group.active_count <= 0) continue;
+      OCPN_PluginChartSafetyGridRequestV1 request = {};
+      request.struct_size = sizeof(request);
+      request.abi_version = OCPN_PLUGIN_CHART_SAFETY_GRID_ABI_V1;
+      request.min_lat = tile.min_lat;
+      request.min_lon = tile.min_lon;
+      request.lat_step = tile.resolution;
+      request.lon_step = tile.resolution;
+      request.rows = tile.rows;
+      request.cols = tile.cols;
+      request.select_radius_degrees = static_cast<float>(
+          kSegmentSafetyGridResolutionDegrees * 0.75);
+      request.active_cells = group.active.data();
+      request.visitor_context = &group;
+      request.visit_object = SegmentSafetyPluginBatchVisit;
+      OCPN_PluginChartSafetyGridResultV1 provider_result = {};
+      provider_result.struct_size = sizeof(provider_result);
+      const double centre_lat =
+          tile.min_lat + kSegmentSafetyGridTileDegrees / 2.0;
+      const double centre_lon =
+          tile.min_lon + kSegmentSafetyGridTileDegrees / 2.0;
+      const ViewPort vp =
+          SegmentSafetyHighestDetailViewPortAt(centre_lat, centre_lon);
+      const int status = g_pi_manager->QueryPlugInChartSafetyGrid(
+          group.wrapper, request, &provider_result, vp);
+      if (status != 1 ||
+          provider_result.abi_version !=
+              OCPN_PLUGIN_CHART_SAFETY_GRID_ABI_V1 ||
+          provider_result.processed_cells !=
+              static_cast<uint32_t>(group.active_count)) {
+        plugin_batch_fallback_cells += group.active_count;
+        continue;
+      }
+
+      ++plugin_batch_groups;
+      plugin_batch_cells += group.active_count;
+      plugin_batch_candidate_objects += provider_result.candidate_objects;
+      plugin_batch_hit_objects += provider_result.hit_objects;
+      if (stats) ++stats->s57_chart_count;
+      for (size_t index = 0; index < grid_cell_count; ++index) {
+        if (!group.active[index]) continue;
+        plugin_batch_classified[index] = 1;
+        SegmentSafetyPointClass point_class = SEGMENT_SAFETY_POINT_WATER;
+        if (group.land[index])
+          point_class = SEGMENT_SAFETY_POINT_LAND;
+        else if (group.drying[index])
+          point_class = SEGMENT_SAFETY_POINT_DRYING;
+        tile.classes[index] = static_cast<unsigned char>(point_class);
+        const uint16_t hazards = SegmentSafetyPointHazardFlags(point_class);
+        tile.hazard_flags[index] = hazards;
+        tile.hazard_summary_flags |= hazards;
+        const bool depth_known = group.has_depth[index] &&
+                                 !group.unknown_danger_depth[index];
+        tile.has_depth[index] = depth_known ? 1 : 0;
+        tile.min_depth_m[index] =
+            depth_known ? group.min_depth_m[index] : 0.0f;
+        tile.has_drying[index] = group.drying[index] ? 1 : 0;
+      }
+      if (tile.source == PI_SEGMENT_SAFETY_SOURCE_NONE) {
+        tile.source = PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
+        tile.chart_db_index = group.db_index;
+        tile.chart_scale = group.wrapper->GetNativeScale();
+        CopySegmentSafetyString(tile.chart_path, sizeof(tile.chart_path),
+                                group.wrapper->GetFullPath().mb_str());
+      }
+    }
+    plugin_batch_query_ms = batch_query_timer.Time();
+  }
 
   // A CM93 composite normally selects its scale and reconstructs viewport
   // state for every queried point.  A 41x41 safety tile therefore used to do
@@ -5479,6 +5681,25 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
     double cell_lat = tile.min_lat + r * tile.resolution;
     for (int c = 0; c < tile.cols; ++c) {
       const int cell_index = r * tile.cols + c;
+      if (plugin_batch_classified[cell_index]) {
+        const SegmentSafetyPointClass point_class =
+            static_cast<SegmentSafetyPointClass>(tile.classes[cell_index]);
+        switch (point_class) {
+          case SEGMENT_SAFETY_POINT_LAND:
+            ++land;
+            break;
+          case SEGMENT_SAFETY_POINT_WATER:
+            ++water;
+            break;
+          case SEGMENT_SAFETY_POINT_DRYING:
+            ++drying;
+            break;
+          default:
+            ++unknown;
+            break;
+        }
+        continue;
+      }
       if (cm93_clear_shortcut) {
         tile.classes[cell_index] = (unsigned char)SEGMENT_SAFETY_POINT_WATER;
         tile.hazard_flags[cell_index] = SEGMENT_SAFETY_HAZARD_NONE;
@@ -5602,6 +5823,16 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
       cm93_clear_shortcut ? 1 : 0, cm93_hazard_objects,
       cm93_depth_boundary_attempts, cm93_depth_boundary_recoveries,
       tile.depth_complete ? 1 : 0);
+  if (plugin_batch_groups || plugin_batch_fallback_cells) {
+    wxLogMessage(
+        "SEGMENT_SAFETY_PLUGIN_BATCH key=%ld:%ld groups=%d cells=%d "
+        "fallback_cells=%d select_ms=%ld query_ms=%ld "
+        "candidate_objects=%d hit_objects=%d",
+        lat_tile, lon_tile, plugin_batch_groups, plugin_batch_cells,
+        plugin_batch_fallback_cells, plugin_batch_select_ms,
+        plugin_batch_query_ms, plugin_batch_candidate_objects,
+        plugin_batch_hit_objects);
+  }
 
   return tile;
 }

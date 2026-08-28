@@ -1170,7 +1170,9 @@ wxString SegmentSafetyRuleSummary(ObjRazRules* rule) {
     }
   }
 
-  const char* attrs[] = {"DRVAL1", "DRVAL2", "VALDCO", "WATLEV", "CATWAT"};
+  const char* attrs[] = {"DRVAL1", "DRVAL2", "VALSOU", "VALDCO",
+                         "WATLEV", "CATWAT", "CATWRK", "CATOBS",
+                         "EXPSOU"};
   for (size_t i = 0; i < WXSIZEOF(attrs); ++i) {
     wxString value = SegmentSafetyObjectAttr(obj, attrs[i]);
     if (!value.empty()) summary += wxString::Format("/%s=%s", attrs[i], value);
@@ -1190,19 +1192,145 @@ bool SegmentSafetyParseDouble(wxString value, double* out) {
 }
 
 bool SegmentSafetyRuleDepthMinM(ObjRazRules* rule, double* depth_m) {
-  if (!rule || !rule->obj || strncmp(rule->obj->FeatureName, "DEPARE", 6))
+  if (!rule || !rule->obj ||
+      (strncmp(rule->obj->FeatureName, "DEPARE", 6) &&
+       strncmp(rule->obj->FeatureName, "DRGARE", 6)))
     return false;
   return SegmentSafetyParseDouble(rule->obj->GetAttrValueAsString("DRVAL1"),
                                   depth_m);
 }
 
+bool SegmentSafetyWaterLevelIs(const wxString& value, int code) {
+  wxString normalized = value;
+  normalized.Trim(true);
+  normalized.Trim(false);
+  long parsed = -1;
+  if (normalized.ToLong(&parsed)) return parsed == code;
+  return normalized.Find(wxString::Format("(%d)", code)) != wxNOT_FOUND;
+}
+
+bool SegmentSafetyIsIsolatedDanger(const char* feature_name) {
+  return feature_name &&
+         (!strncmp(feature_name, "WRECKS", 6) ||
+          !strncmp(feature_name, "UWTROC", 6) ||
+          !strncmp(feature_name, "OBSTRN", 6));
+}
+
 bool SegmentSafetyRuleIsDrying(ObjRazRules* rule) {
   if (!rule || !rule->obj) return false;
-  if (!strncmp(rule->obj->FeatureName, "DRGARE", 6)) return true;
   wxString watlev = rule->obj->GetAttrValueAsString("WATLEV");
-  watlev.Trim(true);
-  watlev.Trim(false);
-  return watlev == "4";
+  return SegmentSafetyWaterLevelIs(watlev, 4) ||
+         SegmentSafetyWaterLevelIs(watlev, 5);
+}
+
+bool SegmentSafetyRuleIsAlwaysDry(ObjRazRules* rule) {
+  if (!rule || !rule->obj) return false;
+  return SegmentSafetyWaterLevelIs(
+      rule->obj->GetAttrValueAsString("WATLEV"), 2);
+}
+
+bool SegmentSafetyRuleDangerDepthM(ObjRazRules* rule, double* depth_m,
+                                   bool* unknown_depth) {
+  if (unknown_depth) *unknown_depth = false;
+  if (!rule || !rule->obj ||
+      !SegmentSafetyIsIsolatedDanger(rule->obj->FeatureName))
+    return false;
+  if (SegmentSafetyParseDouble(rule->obj->GetAttrValueAsString("VALSOU"),
+                               depth_m))
+    return true;
+  if (unknown_depth) *unknown_depth = true;
+  return false;
+}
+
+int SegmentSafetyPluginAttributeIndex(PI_S57Obj* obj, const char* attr) {
+  if (!obj || !attr || !obj->att_array || obj->n_attr <= 0) return -1;
+  const char* current = obj->att_array;
+  for (int index = 0; index < obj->n_attr; ++index, current += 6) {
+    if (!strncmp(current, attr, 6)) return index;
+  }
+  return -1;
+}
+
+wxString SegmentSafetyPluginObjectAttr(PI_S57Obj* obj, const char* attr) {
+  const int index = SegmentSafetyPluginAttributeIndex(obj, attr);
+  if (index < 0 || !obj->attVal || index >= (int)obj->attVal->GetCount())
+    return wxString();
+  S57attVal* value = obj->attVal->Item(index);
+  if (!value || !value->value) return wxString();
+  switch (value->valType) {
+    case OGR_STR:
+      return wxString(static_cast<const char*>(value->value), wxConvUTF8);
+    case OGR_REAL:
+      return wxString::Format("%.12g", *static_cast<double*>(value->value));
+    case OGR_INT:
+      return wxString::Format("%d", *static_cast<int*>(value->value));
+    default:
+      return wxString();
+  }
+}
+
+wxString SegmentSafetyPluginObjectSummary(PI_S57Obj* obj) {
+  if (!obj) return wxString();
+  wxString summary =
+      wxString::Format("%s/%s", obj->FeatureName,
+                       SegmentSafetyPrimitiveName(
+                           static_cast<GeoPrim_t>(obj->Primitive_type)));
+  const char* attrs[] = {"DRVAL1", "DRVAL2", "VALSOU", "WATLEV",
+                         "CATWRK", "CATOBS", "EXPSOU"};
+  for (size_t i = 0; i < WXSIZEOF(attrs); ++i) {
+    wxString value = SegmentSafetyPluginObjectAttr(obj, attrs[i]);
+    value.Replace("\"", "'");
+    value.Replace(";", ",");
+    if (!value.empty()) summary += wxString::Format("/%s=%s", attrs[i], value);
+  }
+  return summary;
+}
+
+bool SegmentSafetyPluginObjectIsDrying(PI_S57Obj* obj) {
+  if (!obj) return false;
+  const wxString watlev = SegmentSafetyPluginObjectAttr(obj, "WATLEV");
+  return SegmentSafetyWaterLevelIs(watlev, 4) ||
+         SegmentSafetyWaterLevelIs(watlev, 5);
+}
+
+bool SegmentSafetyPluginObjectIsAlwaysDry(PI_S57Obj* obj) {
+  return obj && SegmentSafetyWaterLevelIs(
+                    SegmentSafetyPluginObjectAttr(obj, "WATLEV"), 2);
+}
+
+bool SegmentSafetyPluginObjectDepthM(PI_S57Obj* obj, double* depth_m,
+                                     wxString* source_attribute,
+                                     bool* unknown_danger_depth) {
+  if (unknown_danger_depth) *unknown_danger_depth = false;
+  if (!obj) return false;
+  if (!strncmp(obj->FeatureName, "DEPARE", 6) ||
+      !strncmp(obj->FeatureName, "DRGARE", 6)) {
+    if (SegmentSafetyParseDouble(
+            SegmentSafetyPluginObjectAttr(obj, "DRVAL1"), depth_m)) {
+      if (source_attribute)
+        *source_attribute = wxString::Format("%s/DRVAL1", obj->FeatureName);
+      return true;
+    }
+    return false;
+  }
+  if (SegmentSafetyIsIsolatedDanger(obj->FeatureName)) {
+    if (SegmentSafetyParseDouble(
+            SegmentSafetyPluginObjectAttr(obj, "VALSOU"), depth_m)) {
+      if (source_attribute)
+        *source_attribute = wxString::Format("%s/VALSOU", obj->FeatureName);
+      return true;
+    }
+    if (unknown_danger_depth) *unknown_danger_depth = true;
+  }
+  return false;
+}
+
+bool IsSupportedSegmentSafetyPluginChart(ChartBase* chart) {
+  ChartPlugInWrapper* wrapper = dynamic_cast<ChartPlugInWrapper*>(chart);
+  if (!wrapper || chart->GetChartFamily() != CHART_FAMILY_VECTOR) return false;
+  PlugInChartBase* plugin_chart = wrapper->GetPlugInChart();
+  return dynamic_cast<PlugInChartBaseGL*>(plugin_chart) != NULL ||
+         dynamic_cast<PlugInChartBaseExtended*>(plugin_chart) != NULL;
 }
 
 s57chart* GetSegmentSafetyChartAtPoint(ChartCanvas* canvas, double lat,
@@ -1409,9 +1537,9 @@ const size_t kMaxSegmentSafetyPointCacheEntries = 250000;
 const double kSegmentSafetyGridTileDegrees = 0.05;
 const double kSegmentSafetyGridResolutionDegrees = 0.00125;
 const int kSegmentSafetyCoarseRouteMaskFactor = 4;
-const int kSegmentSafetyPersistentCacheVersion = 2;
-const int kSegmentSafetyPersistentBaseTileVersion = 2;
-const int kSegmentSafetyRouteMaskAlgorithmVersion = 4;
+const int kSegmentSafetyPersistentCacheVersion = 3;
+const int kSegmentSafetyPersistentBaseTileVersion = 3;
+const int kSegmentSafetyRouteMaskAlgorithmVersion = 5;
 const size_t kMaxSegmentSafetyGridTiles = 4096;
 // Keep the hot in-memory working set bounded, but retain a larger certified
 // disk-backed history so repeated routes do not rebuild recently used waters.
@@ -1521,6 +1649,7 @@ struct CachedSegmentSafetyRouteMaskTile {
   int margin_count;
   bool authoritative_fine;
   bool persistent_certified_safe;
+  bool uses_plugin_vector;
 
   CachedSegmentSafetyRouteMaskTile()
       : group_index(0),
@@ -1548,7 +1677,8 @@ struct CachedSegmentSafetyRouteMaskTile {
         no_chart_count(0),
         margin_count(0),
         authoritative_fine(false),
-        persistent_certified_safe(false) {
+        persistent_certified_safe(false),
+        uses_plugin_vector(false) {
     chart_path[0] = '\0';
   }
 };
@@ -2604,6 +2734,10 @@ bool SegmentSafetyPersistentCacheLoadLocked(const wxString& path) {
     cell.source = (PlugInSegmentSafetySource)entry
                       .Get("source", (int)PI_SEGMENT_SAFETY_SOURCE_VECTOR_CHART)
                       .AsInt();
+    if (cell.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR) {
+      ++s_segment_safety_persistent_entries_ignored;
+      continue;
+    }
     wxString key = entry.Get("key", "").AsString();
     if (key.IsEmpty()) {
       ++s_segment_safety_persistent_entries_ignored;
@@ -2744,7 +2878,8 @@ bool SegmentSafetyPersistentBaseTileCacheLoadLocked(const wxString& path) {
         !dimensions_ok || lat_tile < -1800 || lat_tile > 1800 ||
         lon_tile < -7200 || lon_tile > 7200 ||
         source < PI_SEGMENT_SAFETY_SOURCE_NONE ||
-        source > PI_SEGMENT_SAFETY_SOURCE_GSHHS_FALLBACK ||
+        source > PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR ||
+        source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR ||
         expected_cells == 0 || cell_count != expected_cells ||
         depth_complete > 1 || (hazard_summary & ~valid_hazards)) {
       ++s_segment_safety_persistent_base_tiles_ignored;
@@ -2863,7 +2998,9 @@ bool SegmentSafetyPersistentCertifiedCacheSave() {
            s_segment_safety_persistent_certified_safe_cache.begin();
        it != s_segment_safety_persistent_certified_safe_cache.end(); ++it) {
     const CachedSegmentSafetyCoarseRouteMaskCell& cell = it->second;
-    if (cell.state != SEGMENT_SAFETY_COARSE_CERTIFIED_SAFE) continue;
+    if (cell.state != SEGMENT_SAFETY_COARSE_CERTIFIED_SAFE ||
+        cell.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR)
+      continue;
     wxJSONValue entry;
     entry["key"] = wxString::FromUTF8(it->first.c_str());
     entry["certified_safe"] = true;
@@ -3070,7 +3207,8 @@ bool SegmentSafetyPersistentLookupCertifiedSafe(
 void SegmentSafetyPersistentStoreCertifiedSafe(
     const CachedSegmentSafetyCoarseRouteMaskCell& cell) {
   if (!s_segment_safety_persistent_cache_enabled ||
-      cell.state != SEGMENT_SAFETY_COARSE_CERTIFIED_SAFE)
+      cell.state != SEGMENT_SAFETY_COARSE_CERTIFIED_SAFE ||
+      cell.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR)
     return;
   std::string key = SegmentSafetyPersistentProofKey(
       cell.lat_cell, cell.lon_cell, cell.safety_margin_nm, cell.check_depth,
@@ -3376,7 +3514,7 @@ bool SegmentSafetyExternalTileCacheLookup(
       fabs(external.resolution - kSegmentSafetyGridResolutionDegrees) >
           1e-12 ||
       external.source < PI_SEGMENT_SAFETY_SOURCE_NONE ||
-      external.source > PI_SEGMENT_SAFETY_SOURCE_GSHHS_FALLBACK ||
+      external.source > PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR ||
       (external.hazard_summary_flags & ~valid_hazards) ||
       (require_depth && !external.depth_complete))
     return false;
@@ -3494,7 +3632,8 @@ void StoreSegmentSafetyGridTile(const std::string& key,
     }
     s_segment_safety_grid_cache[key] = tile;
     if (s_segment_safety_persistent_cache_enabled && tile.built &&
-        !tile.persistent_loaded) {
+        !tile.persistent_loaded &&
+        tile.source != PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR) {
       // Compatibility store for older plugins which use the host-owned
       // persistent cache. New weather-routing builds register an external
       // plugin-owned tile cache instead.
@@ -3589,7 +3728,9 @@ bool EnsureSegmentSafetyGridTile(long lat_tile, long lon_tile,
           s_segment_safety_persistent_base_tile_cache.find(key);
       if (it != s_segment_safety_persistent_base_tile_cache.end()) {
         persistent_tile = it->second;
-        found_persistent = persistent_tile.built &&
+        found_persistent =
+            persistent_tile.built &&
+            persistent_tile.source != PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR &&
                            (!require_depth || persistent_tile.depth_complete);
         if (found_persistent) ++s_segment_safety_persistent_base_tiles_used;
       }
@@ -3704,7 +3845,9 @@ bool BuildSegmentSafetyCoarseRouteMaskCellFromFine(
       }
 
       ++coarse.fine_tiles_checked;
-      if (coarse.source == PI_SEGMENT_SAFETY_SOURCE_NONE)
+      if (mask.uses_plugin_vector)
+        coarse.source = PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
+      else if (coarse.source == PI_SEGMENT_SAFETY_SOURCE_NONE)
         coarse.source = mask.source;
       coarse.block_summary_flags |= mask.block_summary_flags;
       bool tile_clear =
@@ -3898,7 +4041,8 @@ bool LoadSegmentSafetyGridTileWithoutBuilding(long lat_tile, long lon_tile,
     std::map<std::string, CachedPointSafetyGridTile>::const_iterator it =
         s_segment_safety_persistent_base_tile_cache.find(key);
     if (it != s_segment_safety_persistent_base_tile_cache.end() &&
-        it->second.built) {
+        it->second.built &&
+        it->second.source != PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR) {
       persistent = it->second;
       found = true;
       ++s_segment_safety_persistent_base_tiles_used;
@@ -4000,6 +4144,9 @@ bool BuildSegmentSafetyCoarseRouteMaskCellFromBase(
         if (built && base_tiles_built) ++*base_tiles_built;
       }
       if (!available) return false;
+
+      if (base.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR)
+        coarse.source = PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
 
       const bool target =
           dlat >= 0 && dlat < kSegmentSafetyCoarseRouteMaskFactor &&
@@ -4187,6 +4334,8 @@ CachedSegmentSafetyRouteMaskTile BuildSegmentSafetyRouteMaskTile(
   mask.built = true;
   mask.authoritative_fine = true;
   mask.persistent_certified_safe = false;
+  mask.uses_plugin_vector =
+      base_tile.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
   mask.source = base_tile.source;
   mask.chart_db_index = base_tile.chart_db_index;
   mask.chart_scale = base_tile.chart_scale;
@@ -4258,6 +4407,8 @@ CachedSegmentSafetyRouteMaskTile BuildSegmentSafetyRouteMaskTile(
           can_mark_tile_clear = false;
           break;
         }
+        if (neighbor_tile.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR)
+          mask.uses_plugin_vector = true;
       }
     }
   }
@@ -4335,6 +4486,8 @@ CachedSegmentSafetyRouteMaskTile BuildSegmentSafetyRouteMaskTile(
           }
 
           const CachedPointSafetyGridTile& source_tile = local->second;
+          if (source_tile.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR)
+            mask.uses_plugin_vector = true;
           if (!source_tile.built || source_tile.classes.empty() ||
               source_row < 0 || source_row >= source_tile.rows ||
               source_col < 0 || source_col >= source_tile.cols)
@@ -4584,17 +4737,31 @@ void SegmentSafetyCandidateChartsAt(double lat, double lon,
 
 struct SegmentSafetyChartCandidate {
   int db_index;
+  int provider_priority;
   int native_scale;
   time_t edition_date;
   time_t file_time;
+  bool plugin_vector;
+  bool cm93;
   std::string path;
 
   SegmentSafetyChartCandidate()
-      : db_index(-1), native_scale(INT_MAX), edition_date(0), file_time(0) {}
+      : db_index(-1),
+        provider_priority(INT_MAX),
+        native_scale(INT_MAX),
+        edition_date(0),
+        file_time(0),
+        plugin_vector(false),
+        cm93(false) {}
 };
 
 bool SegmentSafetyChartCandidateLess(const SegmentSafetyChartCandidate& a,
                                      const SegmentSafetyChartCandidate& b) {
+  // A licensed/native vector chart is authoritative for its coverage.  CM93
+  // is retained only as a degraded vector fallback even when its dynamically
+  // selected local scale happens to have a smaller denominator.
+  if (a.provider_priority != b.provider_priority)
+    return a.provider_priority < b.provider_priority;
   if (a.native_scale != b.native_scale) return a.native_scale < b.native_scale;
   if (a.edition_date != b.edition_date) return a.edition_date > b.edition_date;
   if (a.file_time != b.file_time) return a.file_time > b.file_time;
@@ -4611,14 +4778,19 @@ std::vector<SegmentSafetyChartCandidate> SegmentSafetySortedChartCandidates(
     ChartBase* chart =
         ChartData ? ChartData->OpenChartFromDB(*it, FULL_INIT) : NULL;
     s57chart* s57 = dynamic_cast<s57chart*>(chart);
-    if (!s57) continue;
-    if (IsCm93Chart(chart)) {
+    const bool plugin_vector = IsSupportedSegmentSafetyPluginChart(chart);
+    if (!s57 && !plugin_vector) continue;
+    const bool cm93 = IsCm93Chart(chart);
+    if (cm93) {
       cm93compchart* cm93_chart = dynamic_cast<cm93compchart*>(chart);
       if (cm93_chart) cm93_chart->SetVPParms(detail_vp);
     }
     SegmentSafetyChartCandidate candidate;
     candidate.db_index = *it;
+    candidate.provider_priority = cm93 ? 1 : 0;
     candidate.native_scale = chart->GetNativeScale();
+    candidate.plugin_vector = plugin_vector;
+    candidate.cm93 = cm93;
     candidate.path = chart->GetFullPath().ToStdString();
     if (ChartData && *it >= 0 && *it < ChartData->GetChartTableEntries()) {
       const ChartTableEntry& entry = ChartData->GetChartTableEntry(*it);
@@ -4630,6 +4802,136 @@ std::vector<SegmentSafetyChartCandidate> SegmentSafetySortedChartCandidates(
   std::sort(candidates.begin(), candidates.end(),
             SegmentSafetyChartCandidateLess);
   return candidates;
+}
+
+SegmentSafetyPointClass ChartPluginPointSafetyClassAtRaw(
+    ChartPlugInWrapper* wrapper, const SegmentSafetyChartCandidate& candidate,
+    double lat, double lon, const std::string& point_cache_key,
+    PlugInSegmentSafetySource* source, SegmentSafetyCoreStats* stats,
+    PlugInSegmentSafetyResult* result) {
+  if (!wrapper || !g_pi_manager) return SEGMENT_SAFETY_POINT_NO_DATA;
+
+  const PlugInSegmentSafetySource chart_source =
+      PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
+  if (source) *source = chart_source;
+  if (stats) ++stats->s57_chart_count;
+
+  ViewPort vp = SegmentSafetyHighestDetailViewPortAt(lat, lon);
+  // Query a complete fine-cell neighbourhood.  This ensures point and line
+  // dangers such as WRECKS, UWTROC and OBSTRN cannot fall between grid
+  // samples.  Route-mask dilation subsequently applies the user's margin.
+  const float select_radius =
+      static_cast<float>(kSegmentSafetyGridResolutionDegrees * 0.75);
+  ListOfPI_S57Obj* objects = g_pi_manager->GetPlugInObjRuleListAtLatLon(
+      wrapper, static_cast<float>(lat), static_cast<float>(lon),
+      select_radius, vp);
+  // The chart stack says this licensed chart covers the point. A null query
+  // therefore means the provider/helper could not supply authoritative data;
+  // it must not be converted into an empty-water answer or hidden by CM93.
+  if (!objects) return SEGMENT_SAFETY_POINT_NO_DATA;
+
+  bool land = false;
+  bool drying = false;
+  bool has_depth = false;
+  bool unknown_danger_depth = false;
+  double min_depth_m = 0.0;
+  wxString hit_object;
+  wxString depth_object;
+  wxString depth_attribute;
+
+  if (objects) {
+    for (ListOfPI_S57Obj::Node* node = objects->GetFirst(); node;
+         node = node->GetNext()) {
+      PI_S57Obj* object = node->GetData();
+      if (!object) continue;
+      const wxString summary = SegmentSafetyPluginObjectSummary(object);
+      if (!strncmp(object->FeatureName, "LNDARE", 6) ||
+          SegmentSafetyPluginObjectIsAlwaysDry(object)) {
+        land = true;
+        hit_object = summary;
+        break;
+      }
+      if (SegmentSafetyPluginObjectIsDrying(object)) {
+        drying = true;
+        if (hit_object.empty()) hit_object = summary;
+      }
+
+      double object_depth_m = 0.0;
+      bool object_unknown_danger_depth = false;
+      wxString object_depth_attribute;
+      if (SegmentSafetyPluginObjectDepthM(
+              object, &object_depth_m, &object_depth_attribute,
+              &object_unknown_danger_depth)) {
+        if (!has_depth || object_depth_m < min_depth_m) {
+          has_depth = true;
+          min_depth_m = object_depth_m;
+          depth_object = summary;
+          depth_attribute = object_depth_attribute;
+        }
+      }
+      if (object_unknown_danger_depth) {
+        unknown_danger_depth = true;
+        depth_object = summary;
+        depth_attribute =
+            wxString::Format("%s/VALSOU missing", object->FeatureName);
+      }
+    }
+    objects->Clear();
+    delete objects;
+  }
+
+  const wxString chart_path = wrapper->GetFullPath();
+  if (land) {
+    if (SegmentSafetyResultHas(
+            result, offsetof(PlugInSegmentSafetyResult, hit_object),
+            sizeof(result->hit_object))) {
+      result->chart_db_index = candidate.db_index;
+      result->chart_scale = wrapper->GetNativeScale();
+      CopySegmentSafetyString(result->chart_path, sizeof(result->chart_path),
+                              chart_path.mb_str());
+      CopySegmentSafetyString(result->hit_object, sizeof(result->hit_object),
+                              hit_object.mb_str());
+    }
+    StoreSegmentSafetyPointCache(
+        point_cache_key,
+        MakeSegmentSafetyPointCacheEntry(
+            SEGMENT_SAFETY_POINT_LAND, chart_source, candidate.db_index,
+            wrapper->GetNativeScale(), chart_path.mb_str(),
+            hit_object.mb_str()));
+    return SEGMENT_SAFETY_POINT_LAND;
+  }
+
+  if (unknown_danger_depth) has_depth = false;
+  const SegmentSafetyPointClass point_class =
+      drying ? SEGMENT_SAFETY_POINT_DRYING : SEGMENT_SAFETY_POINT_WATER;
+  if (SegmentSafetyResultHas(
+          result, offsetof(PlugInSegmentSafetyResult, depth_source_attribute),
+          sizeof(result->depth_source_attribute))) {
+    result->chart_db_index = candidate.db_index;
+    result->chart_scale = wrapper->GetNativeScale();
+    CopySegmentSafetyString(result->chart_path, sizeof(result->chart_path),
+                            chart_path.mb_str());
+    result->has_depth = has_depth ? 1 : 0;
+    result->min_depth_m = has_depth ? min_depth_m : 0.0;
+    result->has_drying = drying ? 1 : 0;
+    CopySegmentSafetyString(result->hit_object, sizeof(result->hit_object),
+                            hit_object.mb_str());
+    CopySegmentSafetyString(result->depth_source_object,
+                            sizeof(result->depth_source_object),
+                            depth_object.mb_str());
+    CopySegmentSafetyString(result->depth_source_attribute,
+                            sizeof(result->depth_source_attribute),
+                            depth_attribute.mb_str());
+  }
+  StoreSegmentSafetyPointCache(
+      point_cache_key,
+      MakeSegmentSafetyPointCacheEntry(
+          point_class, chart_source, candidate.db_index,
+          wrapper->GetNativeScale(), chart_path.mb_str(), hit_object.mb_str(),
+          has_depth, min_depth_m, drying, depth_object.mb_str(),
+          depth_attribute.empty() ? nullptr
+                                  : depth_attribute.mb_str().data()));
+  return point_class;
 }
 
 SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
@@ -4670,8 +4972,14 @@ SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
     ChartBase* chart =
         ChartData ? ChartData->OpenChartFromDB(it->db_index, FULL_INIT) : NULL;
     s57chart* s57 = dynamic_cast<s57chart*>(chart);
-    if (!s57) continue;
+    ChartPlugInWrapper* plugin_wrapper =
+        dynamic_cast<ChartPlugInWrapper*>(chart);
+    if (!s57 && !(it->plugin_vector && plugin_wrapper)) continue;
     chart_checked = true;
+    if (it->plugin_vector && plugin_wrapper)
+      return ChartPluginPointSafetyClassAtRaw(
+          plugin_wrapper, *it, lat, lon, point_cache_key, source, stats,
+          result);
     bool cm93 = IsCm93Chart(chart);
     PlugInSegmentSafetySource chart_source =
         cm93 ? PI_SEGMENT_SAFETY_SOURCE_CM93
@@ -4685,19 +4993,24 @@ SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
       if (cm93_chart) cm93_chart->SetVPParms(vp);
     }
 
-    ListOfObjRazRules* rule_list =
-        s57->GetObjRuleListAtLatLon(lat, lon, 0.0, &vp, MASK_AREA);
+    const float select_radius =
+        static_cast<float>(kSegmentSafetyGridResolutionDegrees * 0.75);
+    ListOfObjRazRules* rule_list = s57->GetObjRuleListAtLatLon(
+        lat, lon, select_radius, &vp, MASK_ALL);
     if (!rule_list) continue;
 
     bool drying = false;
     bool has_depth = false;
+    bool unknown_danger_depth = false;
     double min_depth_m = 0.0;
     wxString depth_object;
+    wxString depth_attribute;
     for (ListOfObjRazRules::Node* node = rule_list->GetFirst(); node;
          node = node->GetNext()) {
       ObjRazRules* rule = node->GetData();
       if (!rule || !rule->obj) continue;
-      if (!strncmp(rule->obj->FeatureName, "LNDARE", 6)) {
+      if (!strncmp(rule->obj->FeatureName, "LNDARE", 6) ||
+          SegmentSafetyRuleIsAlwaysDry(rule)) {
         wxString chart_path = chart->GetFullPath();
         wxString object = SegmentSafetyRuleSummary(rule);
         if (SegmentSafetyResultHas(
@@ -4728,12 +5041,31 @@ SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
           has_depth = true;
           min_depth_m = rule_depth;
           depth_object = SegmentSafetyRuleSummary(rule);
+          depth_attribute = wxString::Format("%s/DRVAL1",
+                                             rule->obj->FeatureName);
         }
+      }
+      bool danger_unknown = false;
+      if (SegmentSafetyRuleDangerDepthM(rule, &rule_depth, &danger_unknown)) {
+        if (!has_depth || rule_depth < min_depth_m) {
+          has_depth = true;
+          min_depth_m = rule_depth;
+          depth_object = SegmentSafetyRuleSummary(rule);
+          depth_attribute = wxString::Format("%s/VALSOU",
+                                             rule->obj->FeatureName);
+        }
+      }
+      if (danger_unknown) {
+        unknown_danger_depth = true;
+        depth_object = SegmentSafetyRuleSummary(rule);
+        depth_attribute = wxString::Format("%s/VALSOU missing",
+                                           rule->obj->FeatureName);
       }
     }
 
     rule_list->Clear();
     delete rule_list;
+    if (unknown_danger_depth) has_depth = false;
     SegmentSafetyPointClass point_class =
         drying ? SEGMENT_SAFETY_POINT_DRYING : SEGMENT_SAFETY_POINT_WATER;
     wxString chart_path = chart->GetFullPath();
@@ -4748,10 +5080,16 @@ SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
                 sizeof(result->depth_source_object) - 1);
         result->depth_source_object[sizeof(result->depth_source_object) - 1] =
             '\0';
-        strncpy(result->depth_source_attribute, "DEPARE/DRVAL1",
-                sizeof(result->depth_source_attribute) - 1);
-        result->depth_source_attribute[sizeof(result->depth_source_attribute) -
-                                       1] = '\0';
+        CopySegmentSafetyString(result->depth_source_attribute,
+                                sizeof(result->depth_source_attribute),
+                                depth_attribute.mb_str());
+      } else if (unknown_danger_depth) {
+        CopySegmentSafetyString(result->depth_source_object,
+                                sizeof(result->depth_source_object),
+                                depth_object.mb_str());
+        CopySegmentSafetyString(result->depth_source_attribute,
+                                sizeof(result->depth_source_attribute),
+                                depth_attribute.mb_str());
       }
     }
     StoreSegmentSafetyPointCache(
@@ -4759,7 +5097,9 @@ SegmentSafetyPointClass ChartPointSafetyClassAtRaw(
         MakeSegmentSafetyPointCacheEntry(
             point_class, chart_source, it->db_index, chart->GetNativeScale(),
             chart_path.mb_str(), "", has_depth, min_depth_m, drying,
-            depth_object.mb_str(), has_depth ? "DEPARE/DRVAL1" : NULL));
+            depth_object.mb_str(),
+            depth_attribute.empty() ? nullptr
+                                    : depth_attribute.mb_str().data()));
     return point_class;
   }
 
@@ -5944,6 +6284,7 @@ wxString SegmentSafetyPointDiagnostic(double lat, double lon) {
   int drying_count = 0;
   int depare_count = 0;
   bool has_depth = false;
+  bool unknown_danger_depth_seen = false;
   double min_depth_m = 0.0;
   wxString depth_attr = "none";
   bool chart_checked = false;
@@ -5958,6 +6299,64 @@ wxString SegmentSafetyPointDiagnostic(double lat, double lon) {
     ChartBase* chart =
         ChartData ? ChartData->OpenChartFromDB(it->db_index, FULL_INIT) : NULL;
     s57chart* s57 = dynamic_cast<s57chart*>(chart);
+    ChartPlugInWrapper* plugin_wrapper =
+        dynamic_cast<ChartPlugInWrapper*>(chart);
+    if (it->plugin_vector && plugin_wrapper) {
+      chart_checked = true;
+      chart_db_index = it->db_index;
+      chart_path = chart->GetFullPath();
+      chart_edition_date = it->edition_date;
+      chart_file_time = it->file_time;
+      chart_scale = chart->GetNativeScale();
+      source_name = "PLUGIN_VECTOR";
+      const ViewPort vp = SegmentSafetyHighestDetailViewPortAt(lat, lon);
+      ListOfPI_S57Obj* object_list =
+          g_pi_manager ? g_pi_manager->GetPlugInObjRuleListAtLatLon(
+                             plugin_wrapper, static_cast<float>(lat),
+                             static_cast<float>(lon),
+                             static_cast<float>(
+                                 kSegmentSafetyGridResolutionDegrees * 0.75),
+                             vp)
+                       : NULL;
+      if (!object_list) {
+        chart_checked = false;
+        break;
+      }
+      for (ListOfPI_S57Obj::Node* node = object_list->GetFirst(); node;
+           node = node->GetNext()) {
+        PI_S57Obj* object = node->GetData();
+        if (!object) continue;
+        ++area_count;
+        if (!objects.empty()) objects += ";";
+        objects += SegmentSafetyPluginObjectSummary(object);
+        if (!strncmp(object->FeatureName, "LNDARE", 6) ||
+            SegmentSafetyPluginObjectIsAlwaysDry(object))
+          ++land_count;
+        if (SegmentSafetyPluginObjectIsDrying(object)) ++drying_count;
+        double object_depth_m = 0.0;
+        wxString object_depth_attr;
+        bool unknown_danger_depth = false;
+        if (SegmentSafetyPluginObjectDepthM(
+                object, &object_depth_m, &object_depth_attr,
+                &unknown_danger_depth)) {
+          ++depare_count;
+          if (!has_depth || object_depth_m < min_depth_m) {
+            has_depth = true;
+            min_depth_m = object_depth_m;
+            depth_attr = object_depth_attr;
+          }
+        }
+        if (unknown_danger_depth) {
+          unknown_danger_depth_seen = true;
+          depth_attr = wxString::Format("%s/VALSOU missing",
+                                       object->FeatureName);
+        }
+      }
+      if (unknown_danger_depth_seen) has_depth = false;
+      object_list->Clear();
+      delete object_list;
+      break;
+    }
     if (!s57) continue;
 
     chart_checked = true;
@@ -6906,8 +7305,6 @@ bool PlugIn_PrewarmSegmentSafetyHazardSnapshot(
       captured.source = PI_SEGMENT_SAFETY_SOURCE_VECTOR_CHART;
       std::set<std::string> seen_hazards;
       SegmentSafetyAppendFeatureRings(s57, "LNDARE", &captured.hazards,
-                                      &seen_hazards);
-      SegmentSafetyAppendFeatureRings(s57, "DRGARE", &captured.hazards,
                                       &seen_hazards);
       ++supported_entries;
     } else {

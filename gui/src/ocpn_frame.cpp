@@ -4630,6 +4630,8 @@ const char *SegmentSafetySourceName(int source) {
       return "CM93";
     case PI_SEGMENT_SAFETY_SOURCE_GSHHS_FALLBACK:
       return "GSHHS_FALLBACK";
+    case PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR:
+      return "PLUGIN_VECTOR";
     default:
       return "UNKNOWN";
   }
@@ -4673,6 +4675,33 @@ void RunSegmentSafetyDiagnostics() {
     PlugIn_ClearSegmentSafetyPersistentCache();
   wxLogMessage("SEGMENT_SAFETY_TEST begin chart_only=1 fallback=0");
   int failures = 0;
+
+  const char *ochart_smoke = getenv("WR_OCHART_SAFETY_SMOKE_ONLY");
+  if (ochart_smoke &&
+      (!strcmp(ochart_smoke, "1") || !strcmp(ochart_smoke, "true"))) {
+    const wxString holy_island_land =
+        PlugIn_SegmentSafetyPointDiagnostic(53.300000, -4.680000);
+    const wxString holyhead_water =
+        PlugIn_SegmentSafetyPointDiagnostic(53.325000, -4.705000);
+    const bool land_pass =
+        holy_island_land.Find("source=PLUGIN_VECTOR") != wxNOT_FOUND &&
+        holy_island_land.Find("class=LAND") != wxNOT_FOUND;
+    const bool water_depth_pass =
+        holyhead_water.Find("source=PLUGIN_VECTOR") != wxNOT_FOUND &&
+        holyhead_water.Find("class=WATER_OR_NO_UNSAFE_AREA") != wxNOT_FOUND &&
+        holyhead_water.Find("has_depth=1") != wxNOT_FOUND;
+    if (!land_pass) ++failures;
+    if (!water_depth_pass) ++failures;
+    wxLogMessage(
+        "OCHART_SAFETY_SMOKE case=holy_island_land pass=%d %s",
+        land_pass ? 1 : 0, holy_island_land.c_str());
+    wxLogMessage(
+        "OCHART_SAFETY_SMOKE case=holyhead_water_depth pass=%d %s",
+        water_depth_pass ? 1 : 0, holyhead_water.c_str());
+    wxLogMessage("OCHART_SAFETY_SMOKE complete pass=%d failures=%d",
+                 failures == 0 ? 1 : 0, failures);
+    return;
+  }
 
   const PointSafetyDiagnosticCase point_cases[] = {
       {"Portpatrick/Killantringan land probe", 54.842500, -5.090000},
@@ -4983,6 +5012,7 @@ void RunSegmentSafetyDiagnostics() {
       options.safety_margin_nm = 0.0;
       options.check_land = 1;
       options.allow_gshhs_fallback = 0;
+      options.force_authoritative_fine_validation = 1;
       PlugInSegmentSafetyResult result = {};
       result.struct_size = sizeof(result);
       PlugIn_CheckSegmentSafety(fc.points[j - 1].lat, fc.points[j - 1].lon,

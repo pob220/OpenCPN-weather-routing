@@ -1539,7 +1539,7 @@ const double kSegmentSafetyGridTileDegrees = 0.05;
 const double kSegmentSafetyGridResolutionDegrees = 0.00125;
 const int kSegmentSafetyCoarseRouteMaskFactor = 4;
 const int kSegmentSafetyPersistentCacheVersion = 3;
-const int kSegmentSafetyPersistentBaseTileVersion = 3;
+const int kSegmentSafetyPersistentBaseTileVersion = 4;
 const int kSegmentSafetyRouteMaskAlgorithmVersion = 5;
 const size_t kMaxSegmentSafetyGridTiles = 4096;
 // Keep the hot in-memory working set bounded, but retain a larger certified
@@ -1570,6 +1570,7 @@ struct CachedPointSafetyGridTile {
   int chart_scale;
   PlugInSegmentSafetySource source;
   char chart_path[256];
+  char dependency_identity[80];
   std::vector<unsigned char> classes;
   std::vector<uint16_t> hazard_flags;
   std::vector<unsigned char> has_depth;
@@ -1602,6 +1603,7 @@ struct CachedPointSafetyGridTile {
         depth_complete(true),
         persistent_cache_allowed(false) {
     chart_path[0] = '\0';
+    dependency_identity[0] = '\0';
   }
 };
 
@@ -1776,6 +1778,7 @@ bool s_segment_safety_persistent_cache_dirty = false;
 bool s_segment_safety_persistent_base_tiles_loaded = false;
 bool s_segment_safety_persistent_base_tiles_dirty = false;
 wxString s_segment_safety_chart_identity;
+wxString s_segment_safety_chart_catalog_identity;
 long s_segment_safety_persistent_entries_loaded = 0;
 long s_segment_safety_persistent_entries_saved = 0;
 long s_segment_safety_persistent_entries_used = 0;
@@ -2595,39 +2598,60 @@ wxString SegmentSafetyChartIdentity() {
   if (!ChartData) return wxEmptyString;
 
   uint64_t hash = 1469598103934665603ULL;
-  SegmentSafetyHashAdd(&hash, ChartData->GetDBFileName());
-  SegmentSafetyHashAdd(&hash,
-                       wxString::Format("dbv=%d", ChartData->GetVersion()));
+  // Keep only global semantic inputs here.  Individual chart metadata is
+  // fingerprinted per tile, allowing a chart update to invalidate affected
+  // waters without discarding an otherwise valid regional atlas.
+  SegmentSafetyHashAdd(&hash, "semantic-grid-v6");
   SegmentSafetyHashAdd(
       &hash, wxString::Format("group=%d", SegmentSafetyCurrentGroupIndex()));
   if (g_pi_manager)
     SegmentSafetyHashAdd(
         &hash, "batch-providers=" + SegmentSafetyPluginBatchProviderIdentity());
-  int entries = ChartData->GetChartTableEntries();
+  // v6 also identifies canonical global-grid coordinates and padded chart
+  // candidate discovery at shared provider-batch edges.  Earlier v4 stores
+  // can contain edge cells classified from an incomplete candidate set, so
+  // they must be invalidated once even when the chart database is unchanged.
+  return wxString::Format("ocpn-chart-safety-v6-%016llx",
+                          (unsigned long long)hash);
+}
+
+wxString SegmentSafetyChartCatalogIdentity() {
+  if (!ChartData) return wxEmptyString;
+  uint64_t hash = 1469598103934665603ULL;
+  SegmentSafetyHashAdd(&hash, ChartData->GetDBFileName());
+  SegmentSafetyHashAdd(&hash,
+                       wxString::Format("dbv=%d", ChartData->GetVersion()));
+  const int entries = ChartData->GetChartTableEntries();
   SegmentSafetyHashAdd(&hash, wxString::Format("entries=%d", entries));
   for (int i = 0; i < entries; ++i) {
-    const ChartTableEntry& cte = ChartData->GetChartTableEntry(i);
-    SegmentSafetyHashAdd(&hash, wxString::FromUTF8(cte.GetFullPath().c_str()));
+    const ChartTableEntry& entry = ChartData->GetChartTableEntry(i);
+    SegmentSafetyHashAdd(&hash,
+                         wxString::FromUTF8(entry.GetFullPath().c_str()));
     SegmentSafetyHashAdd(
-        &hash, wxString::Format("t=%ld:e=%ld:scale=%d:type=%d:family=%d",
-                                (long)cte.GetFileTime(),
-                                (long)cte.GetChartEditionDate(), cte.GetScale(),
-                                cte.GetChartType(), cte.GetChartFamily()));
-    const std::vector<int>& groups = cte.GetGroupArray();
-    for (size_t j = 0; j < groups.size(); ++j)
-      SegmentSafetyHashAdd(&hash, wxString::Format("g%d", groups[j]));
+        &hash, wxString::Format("t=%lld:e=%lld:scale=%d:type=%d:family=%d",
+                                static_cast<long long>(entry.GetFileTime()),
+                                static_cast<long long>(
+                                    entry.GetChartEditionDate()),
+                                entry.GetScale(), entry.GetChartType(),
+                                entry.GetChartFamily()));
+    const std::vector<int>& groups = entry.GetGroupArray();
+    for (size_t group = 0; group < groups.size(); ++group)
+      SegmentSafetyHashAdd(&hash,
+                           wxString::Format("g%d", groups[group]));
   }
-  // v4 also includes the optional semantic provider binary identity. Upgrading
-  // or downgrading o-charts therefore invalidates both core and plugin-owned
-  // persistent tiles automatically, even when the chart database is unchanged.
-  return wxString::Format("ocpn-chartdb-v4-%016llx", (unsigned long long)hash);
+  return wxString::Format("chart-catalog-v1-%016llx",
+                          static_cast<unsigned long long>(hash));
 }
 
 void SegmentSafetyRefreshPersistentChartIdentity() {
   if (!wxThread::IsMain()) return;
   wxString identity = SegmentSafetyChartIdentity();
+  wxString catalog_identity = SegmentSafetyChartCatalogIdentity();
   PlugInSegmentSafetyTileCacheIdentityFn identity_callback = nullptr;
+  PlugInSegmentSafetyTileCacheDependenciesChangedFn dependencies_callback =
+      nullptr;
   void* identity_context = nullptr;
+  void* dependencies_context = nullptr;
   {
     wxMutexLocker lock(s_segment_safety_cache_mutex);
     if (identity != s_segment_safety_chart_identity) {
@@ -2658,6 +2682,33 @@ void SegmentSafetyRefreshPersistentChartIdentity() {
           s_segment_safety_external_tile_cache.identity_changed;
       identity_context = s_segment_safety_external_tile_cache.context;
     }
+    if (catalog_identity != s_segment_safety_chart_catalog_identity) {
+      const bool initial_catalog =
+          s_segment_safety_chart_catalog_identity.IsEmpty();
+      wxLogMessage(
+          "WR_CERT_SAFE_CACHE chart_catalog old=\"%s\" new=\"%s\" "
+          "selective_base_tile_validation=1",
+          s_segment_safety_chart_catalog_identity, catalog_identity);
+      s_segment_safety_chart_catalog_identity = catalog_identity;
+      // Base semantic tiles carry a local dependency fingerprint and remain
+      // available for selective validation.  Derived masks and broad proofs
+      // do not, so discard them whenever the catalogue changes.
+      if (!initial_catalog) {
+        s_segment_safety_land_cache.clear();
+        s_segment_safety_hazard_snapshot.reset();
+        s_segment_safety_point_cache.clear();
+        s_segment_safety_route_mask_cache.clear();
+        s_segment_safety_coarse_route_mask_cache.clear();
+        s_segment_safety_segment_cache.clear();
+        s_segment_safety_pinned_route_mask_keys.clear();
+        s_segment_safety_persistent_certified_safe_cache.clear();
+        s_segment_safety_persistent_cache_dirty = true;
+        dependencies_callback =
+            s_segment_safety_external_tile_cache.dependencies_changed;
+        dependencies_context =
+            s_segment_safety_external_tile_cache.context;
+      }
+    }
   }
   // Plugin callbacks may perform disk I/O and use their own mutex. Never call
   // them while holding the host cache mutex.
@@ -2665,6 +2716,8 @@ void SegmentSafetyRefreshPersistentChartIdentity() {
     wxCharBuffer utf8 = identity.ToUTF8();
     identity_callback(identity_context, utf8.data() ? utf8.data() : "");
   }
+  if (dependencies_callback)
+    dependencies_callback(dependencies_context);
 }
 
 wxString SegmentSafetyPersistentCachePath() {
@@ -2899,6 +2952,7 @@ bool SegmentSafetyPersistentBaseTileCacheLoadLocked(const wxString& path) {
     uint8_t depth_complete = 0;
     uint32_t cell_count = 0;
     std::string chart_path;
+    std::string dependency_identity;
     bool record_ok = SegmentSafetyReadBinary(input, &group_index) &&
                      SegmentSafetyReadBinary(input, &lat_tile) &&
                      SegmentSafetyReadBinary(input, &lon_tile) &&
@@ -2910,6 +2964,8 @@ bool SegmentSafetyPersistentBaseTileCacheLoadLocked(const wxString& path) {
                      SegmentSafetyReadBinary(input, &hazard_summary) &&
                      SegmentSafetyReadBinary(input, &depth_complete) &&
                      SegmentSafetyReadBinaryString(input, &chart_path) &&
+                     SegmentSafetyReadBinaryString(input,
+                                                   &dependency_identity) &&
                      SegmentSafetyReadBinary(input, &cell_count);
     const bool dimensions_ok =
         rows > 0 && cols > 0 && rows <= 256 && cols <= 256;
@@ -2924,7 +2980,10 @@ bool SegmentSafetyPersistentBaseTileCacheLoadLocked(const wxString& path) {
         source > PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR ||
         source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR ||
         expected_cells == 0 || cell_count != expected_cells ||
-        depth_complete > 1 || (hazard_summary & ~valid_hazards)) {
+        depth_complete > 1 || dependency_identity.empty() ||
+        dependency_identity.size() >=
+            sizeof(CachedPointSafetyGridTile().dependency_identity) ||
+        (hazard_summary & ~valid_hazards)) {
       ++s_segment_safety_persistent_base_tiles_ignored;
       wxLogMessage(
           "WR_BASE_TILE_CACHE load cache_malformed_ignored=1 record=%u "
@@ -2950,6 +3009,9 @@ bool SegmentSafetyPersistentBaseTileCacheLoadLocked(const wxString& path) {
     tile.depth_complete = depth_complete != 0;
     strncpy(tile.chart_path, chart_path.c_str(), sizeof(tile.chart_path) - 1);
     tile.chart_path[sizeof(tile.chart_path) - 1] = '\0';
+    strncpy(tile.dependency_identity, dependency_identity.c_str(),
+            sizeof(tile.dependency_identity) - 1);
+    tile.dependency_identity[sizeof(tile.dependency_identity) - 1] = '\0';
     tile.hazard_flags.resize(cell_count);
     tile.has_depth.resize(cell_count);
     tile.min_depth_m.resize(cell_count);
@@ -3193,6 +3255,7 @@ bool SegmentSafetyPersistentBaseTileCacheSave() {
          SegmentSafetyWriteBinary(output, hazard_summary) &&
          SegmentSafetyWriteBinary(output, depth_complete) &&
          SegmentSafetyWriteBinaryString(output, tile.chart_path) &&
+         SegmentSafetyWriteBinaryString(output, tile.dependency_identity) &&
          SegmentSafetyWriteBinary(output, cell_count);
     if (!ok) break;
     output.write(reinterpret_cast<const char*>(&tile.hazard_flags[0]),
@@ -3602,6 +3665,9 @@ bool SegmentSafetyExternalTileCacheLookup(
   tile.persistent_cache_allowed = true;
   strncpy(tile.chart_path, external.chart_path, sizeof(tile.chart_path) - 1);
   tile.chart_path[sizeof(tile.chart_path) - 1] = '\0';
+  strncpy(tile.dependency_identity, external.dependency_identity,
+          sizeof(tile.dependency_identity) - 1);
+  tile.dependency_identity[sizeof(tile.dependency_identity) - 1] = '\0';
   tile.classes.resize(cells);
   tile.has_drying.resize(cells);
   tile.land_count = tile.water_count = tile.drying_count =
@@ -3633,6 +3699,10 @@ bool SegmentSafetyExternalTileCacheLookup(
   *result = tile;
   return true;
 }
+
+wxString SegmentSafetyTileDependencyIdentity(long lat_tile, long lon_tile);
+bool SegmentSafetyTileDependencyIsCurrent(
+    const CachedPointSafetyGridTile& tile);
 
 void SegmentSafetyExternalTileCacheStore(
     const CachedPointSafetyGridTile& tile) {
@@ -3667,6 +3737,9 @@ void SegmentSafetyExternalTileCacheStore(
       strnlen(tile.chart_path, sizeof(external.chart_path) - 1);
   memcpy(external.chart_path, tile.chart_path, chart_path_size);
   external.chart_path[chart_path_size] = '\0';
+  CopySegmentSafetyString(external.dependency_identity,
+                          sizeof(external.dependency_identity),
+                          tile.dependency_identity);
   external.hazard_flags =
       const_cast<unsigned short*>(tile.hazard_flags.data());
   external.has_depth =
@@ -3678,6 +3751,14 @@ void SegmentSafetyExternalTileCacheStore(
 
 void StoreSegmentSafetyGridTile(const std::string& key,
                                 const CachedPointSafetyGridTile& tile) {
+  CachedPointSafetyGridTile stored = tile;
+  if (wxThread::IsMain()) {
+    const wxString dependency =
+        SegmentSafetyTileDependencyIdentity(tile.lat_tile, tile.lon_tile);
+    CopySegmentSafetyString(stored.dependency_identity,
+                            sizeof(stored.dependency_identity),
+                            dependency.mb_str());
+  }
   {
     wxMutexLocker lock(s_segment_safety_cache_mutex);
     if (s_segment_safety_grid_cache.find(key) ==
@@ -3700,14 +3781,14 @@ void StoreSegmentSafetyGridTile(const std::string& key,
         ++s_segment_safety_grid_cache_evictions;
       }
     }
-    s_segment_safety_grid_cache[key] = tile;
-    if (s_segment_safety_persistent_cache_enabled && tile.built &&
-        !tile.persistent_loaded &&
-        tile.source != PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR) {
+    s_segment_safety_grid_cache[key] = stored;
+    if (s_segment_safety_persistent_cache_enabled && stored.built &&
+        !stored.persistent_loaded &&
+        stored.source != PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR) {
       // Compatibility store for older plugins which use the host-owned
       // persistent cache. New weather-routing builds register an external
       // plugin-owned tile cache instead.
-      s_segment_safety_persistent_base_tile_cache[key] = tile;
+      s_segment_safety_persistent_base_tile_cache[key] = stored;
       while (s_segment_safety_persistent_base_tile_cache.size() >
              kMaxSegmentSafetyPersistentGridTiles)
         s_segment_safety_persistent_base_tile_cache.erase(
@@ -3716,7 +3797,7 @@ void StoreSegmentSafetyGridTile(const std::string& key,
       ++s_segment_safety_persistent_tiles_since_checkpoint;
     }
   }
-  SegmentSafetyExternalTileCacheStore(tile);
+  SegmentSafetyExternalTileCacheStore(stored);
 }
 
 bool LookupSegmentSafetyGridTile(const std::string& key,
@@ -3746,12 +3827,18 @@ bool EnsureSegmentSafetyGridTile(long lat_tile, long lon_tile,
   if (built) *built = false;
   std::string key = SegmentSafetyGridTileKeyForIndices(lat_tile, lon_tile);
   CachedPointSafetyGridTile active_tile;
-  if (LookupSegmentSafetyGridTile(key, &active_tile) &&
-      (!require_depth || active_tile.depth_complete)) {
+  const bool active_found = LookupSegmentSafetyGridTile(key, &active_tile);
+  const bool active_current =
+      active_found &&
+      (!wxThread::IsMain() ||
+       SegmentSafetyTileDependencyIsCurrent(active_tile));
+  if (active_current && (!require_depth || active_tile.depth_complete)) {
     if (stats) ++stats->grid_cache_hits;
     return true;
   }
-  if (require_depth && active_tile.built && !active_tile.depth_complete) {
+  if (active_found &&
+      (!active_current ||
+       (require_depth && active_tile.built && !active_tile.depth_complete))) {
     wxMutexLocker lock(s_segment_safety_cache_mutex);
     s_segment_safety_grid_cache.erase(key);
     s_segment_safety_persistent_base_tile_cache.erase(key);
@@ -3785,6 +3872,7 @@ bool EnsureSegmentSafetyGridTile(long lat_tile, long lon_tile,
   CachedPointSafetyGridTile external_tile;
   if (SegmentSafetyExternalTileCacheLookup(
           lat_tile, lon_tile, require_depth, &external_tile) &&
+      SegmentSafetyTileDependencyIsCurrent(external_tile) &&
       SegmentSafetyCachedTileProviderIsCurrent(external_tile)) {
     StoreSegmentSafetyGridTile(key, external_tile);
     if (stats) ++stats->grid_cache_hits;
@@ -3809,6 +3897,7 @@ bool EnsureSegmentSafetyGridTile(long lat_tile, long lon_tile,
       }
     }
     if (found_persistent &&
+        SegmentSafetyTileDependencyIsCurrent(persistent_tile) &&
         SegmentSafetyCachedTileProviderIsCurrent(persistent_tile)) {
       StoreSegmentSafetyGridTile(key, persistent_tile);
       if (stats) ++stats->grid_cache_hits;
@@ -4876,6 +4965,11 @@ SegmentSafetyTileChartCandidates(double min_lat, double min_lon,
   std::vector<SegmentSafetyChartCandidate> candidates;
   if (!ChartData) return candidates;
 
+  const ocpn::chart_safety::GeographicBounds discovery =
+      ocpn::chart_safety::ExpandCandidateDiscoveryBounds(
+          {min_lat, min_lon, max_lat, max_lon},
+          kSegmentSafetyGridResolutionDegrees);
+
   const int group_index = SegmentSafetyCurrentGroupIndex();
   const int entries = ChartData->GetChartTableEntries();
   candidates.reserve(entries);
@@ -4895,9 +4989,12 @@ SegmentSafetyTileChartCandidates(double min_lat, double min_lon,
     if (type == CHART_TYPE_PLUGIN &&
         !ChartData->IsChartAvailable(db_index))
       continue;
-    if (entry.GetLatMax() < min_lat || entry.GetLatMin() > max_lat) continue;
+    if (entry.GetLatMax() < discovery.min_lat ||
+        entry.GetLatMin() > discovery.max_lat)
+      continue;
     if (!SegmentSafetyLongitudeRangesOverlap(
-            entry.GetLonMin(), entry.GetLonMax(), min_lon, max_lon))
+            entry.GetLonMin(), entry.GetLonMax(), discovery.min_lon,
+            discovery.max_lon))
       continue;
 
     SegmentSafetyChartCandidate candidate;
@@ -4914,6 +5011,40 @@ SegmentSafetyTileChartCandidates(double min_lat, double min_lon,
   std::sort(candidates.begin(), candidates.end(),
             SegmentSafetyChartCandidateLess);
   return candidates;
+}
+
+wxString SegmentSafetyTileDependencyIdentity(long lat_tile, long lon_tile) {
+  uint64_t hash = 1469598103934665603ULL;
+  SegmentSafetyHashAdd(&hash, "tile-dependencies-v1");
+  SegmentSafetyHashAdd(
+      &hash, wxString::Format("group=%d", SegmentSafetyCurrentGroupIndex()));
+  const double min_lat = lat_tile * kSegmentSafetyGridTileDegrees;
+  const double min_lon = lon_tile * kSegmentSafetyGridTileDegrees;
+  const std::vector<SegmentSafetyChartCandidate> candidates =
+      SegmentSafetyTileChartCandidates(
+          min_lat, min_lon, min_lat + kSegmentSafetyGridTileDegrees,
+          min_lon + kSegmentSafetyGridTileDegrees);
+  for (std::vector<SegmentSafetyChartCandidate>::const_iterator it =
+           candidates.begin();
+       it != candidates.end(); ++it) {
+    SegmentSafetyHashAdd(&hash, wxString::FromUTF8(it->path.c_str()));
+    SegmentSafetyHashAdd(
+        &hash,
+        wxString::Format("p=%d:s=%d:e=%lld:f=%lld:plugin=%d:cm93=%d",
+                         it->provider_priority, it->native_scale,
+                         static_cast<long long>(it->edition_date),
+                         static_cast<long long>(it->file_time),
+                         it->plugin_vector ? 1 : 0, it->cm93 ? 1 : 0));
+  }
+  return wxString::Format("tile-v1-%016llx",
+                          static_cast<unsigned long long>(hash));
+}
+
+bool SegmentSafetyTileDependencyIsCurrent(
+    const CachedPointSafetyGridTile& tile) {
+  if (!wxThread::IsMain() || !tile.dependency_identity[0]) return false;
+  return SegmentSafetyTileDependencyIdentity(tile.lat_tile, tile.lon_tile) ==
+         wxString::FromUTF8(tile.dependency_identity);
 }
 
 std::vector<SegmentSafetyChartCandidate> SegmentSafetySortedChartCandidates(
@@ -5690,14 +5821,18 @@ PrebuildSegmentSafetyPluginVectorGridTiles(
     if (cell_count == 0 || cell_count > 65536) continue;
 
     wxStopWatch timer;
-    const double min_lat =
-        block.min_lat_tile * kSegmentSafetyGridTileDegrees;
-    const double min_lon =
-        block.min_lon_tile * kSegmentSafetyGridTileDegrees;
-    const double max_lat = min_lat + (rows - 1) *
-                                         kSegmentSafetyGridResolutionDegrees;
-    const double max_lon = min_lon + (cols - 1) *
-                                         kSegmentSafetyGridResolutionDegrees;
+    const double min_lat = ocpn::chart_safety::GlobalGridCoordinate(
+        block.min_lat_tile, 0, kTileCells,
+        kSegmentSafetyGridResolutionDegrees);
+    const double min_lon = ocpn::chart_safety::GlobalGridCoordinate(
+        block.min_lon_tile, 0, kTileCells,
+        kSegmentSafetyGridResolutionDegrees);
+    const double max_lat = ocpn::chart_safety::GlobalGridCoordinate(
+        block.min_lat_tile, rows - 1, kTileCells,
+        kSegmentSafetyGridResolutionDegrees);
+    const double max_lon = ocpn::chart_safety::GlobalGridCoordinate(
+        block.min_lon_tile, cols - 1, kTileCells,
+        kSegmentSafetyGridResolutionDegrees);
     const std::vector<SegmentSafetyChartCandidate> candidates =
         SegmentSafetyTileChartCandidates(min_lat, min_lon, max_lat, max_lon);
 
@@ -5716,11 +5851,13 @@ PrebuildSegmentSafetyPluginVectorGridTiles(
     std::map<int, SegmentSafetyPluginBatchGroup> groups;
 
     for (int row = 0; row < rows; ++row) {
-      const double lat =
-          min_lat + row * kSegmentSafetyGridResolutionDegrees;
+      const double lat = ocpn::chart_safety::GlobalGridCoordinate(
+          block.min_lat_tile, row, kTileCells,
+          kSegmentSafetyGridResolutionDegrees);
       for (int col = 0; col < cols; ++col) {
-        const double lon =
-            min_lon + col * kSegmentSafetyGridResolutionDegrees;
+        const double lon = ocpn::chart_safety::GlobalGridCoordinate(
+            block.min_lon_tile, col, kTileCells,
+            kSegmentSafetyGridResolutionDegrees);
         const size_t index = static_cast<size_t>(row) * cols + col;
         bool selected_plugin = false;
         for (const auto& candidate : candidates) {
@@ -6052,13 +6189,16 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
 
   wxStopWatch timer;
   CachedPointSafetyGridTile tile;
+  constexpr int kTileCells = 40;
   tile.group_index = SegmentSafetyCurrentGroupIndex();
   tile.lat_tile = lat_tile;
   tile.lon_tile = lon_tile;
-  tile.min_lat = lat_tile * kSegmentSafetyGridTileDegrees;
-  tile.min_lon = lon_tile * kSegmentSafetyGridTileDegrees;
+  tile.min_lat = ocpn::chart_safety::GlobalGridCoordinate(
+      lat_tile, 0, kTileCells, kSegmentSafetyGridResolutionDegrees);
+  tile.min_lon = ocpn::chart_safety::GlobalGridCoordinate(
+      lon_tile, 0, kTileCells, kSegmentSafetyGridResolutionDegrees);
   tile.resolution = kSegmentSafetyGridResolutionDegrees;
-  tile.rows = (int)ceil(kSegmentSafetyGridTileDegrees / tile.resolution) + 1;
+  tile.rows = kTileCells + 1;
   tile.cols = tile.rows;
   tile.built = true;
   tile.classes.assign(tile.rows * tile.cols,
@@ -6094,17 +6234,19 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
       g_pi_manager->HasPlugInChartSafetyGrid()) {
     wxStopWatch batch_select_timer;
     std::map<int, SegmentSafetyPluginBatchGroup> groups;
-    const double grid_max_lat =
-        tile.min_lat + (tile.rows - 1) * tile.resolution;
-    const double grid_max_lon =
-        tile.min_lon + (tile.cols - 1) * tile.resolution;
+    const double grid_max_lat = ocpn::chart_safety::GlobalGridCoordinate(
+        lat_tile, tile.rows - 1, kTileCells, tile.resolution);
+    const double grid_max_lon = ocpn::chart_safety::GlobalGridCoordinate(
+        lon_tile, tile.cols - 1, kTileCells, tile.resolution);
     const std::vector<SegmentSafetyChartCandidate> tile_candidates =
         SegmentSafetyTileChartCandidates(tile.min_lat, tile.min_lon,
                                          grid_max_lat, grid_max_lon);
     for (int r = 0; r < tile.rows; ++r) {
-      const double cell_lat = tile.min_lat + r * tile.resolution;
+      const double cell_lat = ocpn::chart_safety::GlobalGridCoordinate(
+          lat_tile, r, kTileCells, tile.resolution);
       for (int c = 0; c < tile.cols; ++c) {
-        const double cell_lon = tile.min_lon + c * tile.resolution;
+        const double cell_lon = ocpn::chart_safety::GlobalGridCoordinate(
+            lon_tile, c, kTileCells, tile.resolution);
         const size_t index = static_cast<size_t>(r) * tile.cols + c;
         bool selected_plugin = false;
         for (std::vector<SegmentSafetyChartCandidate>::const_iterator it =
@@ -6402,9 +6544,11 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
           &cm93_hazard_objects)) {
     cm93_clear_shortcut = true;
     for (int r = 0; r < tile.rows && cm93_clear_shortcut; ++r) {
-      const double cell_lat = tile.min_lat + r * tile.resolution;
+      const double cell_lat = ocpn::chart_safety::GlobalGridCoordinate(
+          lat_tile, r, kTileCells, tile.resolution);
       for (int c = 0; c < tile.cols; ++c) {
-        const double cell_lon = tile.min_lon + c * tile.resolution;
+        const double cell_lon = ocpn::chart_safety::GlobalGridCoordinate(
+            lon_tile, c, kTileCells, tile.resolution);
         if (!prepared_cm93->GetHighestDetailSafetyChartAt(cell_lat, cell_lon)) {
           cm93_clear_shortcut = false;
           break;
@@ -6415,7 +6559,8 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
 
   int land = 0, water = 0, drying = 0, unknown = 0;
   for (int r = 0; r < tile.rows; ++r) {
-    double cell_lat = tile.min_lat + r * tile.resolution;
+    const double cell_lat = ocpn::chart_safety::GlobalGridCoordinate(
+        lat_tile, r, kTileCells, tile.resolution);
     for (int c = 0; c < tile.cols; ++c) {
       const int cell_index = r * tile.cols + c;
       if (plugin_batch_classified[cell_index]) {
@@ -6443,7 +6588,8 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
         ++water;
         continue;
       }
-      double cell_lon = tile.min_lon + c * tile.resolution;
+      const double cell_lon = ocpn::chart_safety::GlobalGridCoordinate(
+          lon_tile, c, kTileCells, tile.resolution);
       PlugInSegmentSafetySource source = PI_SEGMENT_SAFETY_SOURCE_NONE;
       PlugInSegmentSafetyResult cell_result = {};
       cell_result.struct_size = sizeof(cell_result);
@@ -9599,7 +9745,11 @@ bool PlugIn_RegisterSegmentSafetyTileCache(
                 sizeof(callbacks->identity_changed)) ||
         !callbacks->lookup || !callbacks->store)
       return false;
-    s_segment_safety_external_tile_cache = *callbacks;
+    memset(&s_segment_safety_external_tile_cache, 0,
+           sizeof(s_segment_safety_external_tile_cache));
+    memcpy(&s_segment_safety_external_tile_cache, callbacks,
+           std::min(static_cast<size_t>(callbacks->struct_size),
+                    sizeof(s_segment_safety_external_tile_cache)));
     identity_callback = callbacks->identity_changed;
     identity_context = callbacks->context;
   }
@@ -9621,6 +9771,64 @@ bool PlugIn_GetSegmentSafetyChartIdentity(char* identity, int identity_size) {
   strncpy(identity, source, static_cast<size_t>(identity_size) - 1);
   identity[identity_size - 1] = '\0';
   return !value.IsEmpty();
+}
+
+int PlugIn_GetSegmentSafetyChartInfoCount() {
+  if (!wxThread::IsMain() || !ChartData) return 0;
+  return ChartData->GetChartTableEntries();
+}
+
+bool PlugIn_GetSegmentSafetyChartInfo(
+    int ordinal, PlugInSegmentSafetyChartInfoV1* chart_info) {
+  if (!wxThread::IsMain() || !ChartData || !chart_info || ordinal < 0 ||
+      ordinal >= ChartData->GetChartTableEntries() ||
+      chart_info->struct_size <
+          static_cast<int>(sizeof(PlugInSegmentSafetyChartInfoV1)))
+    return false;
+
+  const ChartTableEntry& entry = ChartData->GetChartTableEntry(ordinal);
+  const ChartTypeEnum type =
+      static_cast<ChartTypeEnum>(entry.GetChartType());
+  const ChartFamilyEnum family =
+      static_cast<ChartFamilyEnum>(entry.GetChartFamily());
+  const bool plugin_vector =
+      type == CHART_TYPE_PLUGIN && family == CHART_FAMILY_VECTOR;
+  // A proactive atlas targets bounded official/native and plugin vector
+  // charts. CM93 is a global composite fallback and must never turn "all
+  // charts" into an accidental whole-world atlas build.
+  if (!plugin_vector && family != CHART_FAMILY_VECTOR) return false;
+  if (ChartData->IsChartDirectoryExcluded(entry.GetFullPath())) return false;
+
+  const int group_index = SegmentSafetyCurrentGroupIndex();
+  const bool in_active_group =
+      ChartData->IsChartInGroup(ordinal, group_index);
+  if (!in_active_group) return false;
+  const bool available = type != CHART_TYPE_PLUGIN ||
+                         ChartData->IsChartAvailable(ordinal);
+  if (!available) return false;
+
+  PlugInSegmentSafetyChartInfoV1 result = {};
+  result.struct_size = sizeof(result);
+  result.abi_version = PI_SEGMENT_SAFETY_CHART_INFO_ABI_V1;
+  result.db_index = ordinal;
+  result.chart_type = entry.GetChartType();
+  result.chart_family = entry.GetChartFamily();
+  result.chart_scale = entry.GetScale();
+  result.source = plugin_vector ? PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR
+                                : PI_SEGMENT_SAFETY_SOURCE_VECTOR_CHART;
+  result.available = available ? 1 : 0;
+  result.in_active_group = in_active_group ? 1 : 0;
+  result.edition_time =
+      static_cast<long long>(entry.GetChartEditionDate());
+  result.file_time = static_cast<long long>(entry.GetFileTime());
+  result.min_lat = entry.GetLatMin();
+  result.min_lon = entry.GetLonMin();
+  result.max_lat = entry.GetLatMax();
+  result.max_lon = entry.GetLonMax();
+  CopySegmentSafetyString(result.chart_path, sizeof(result.chart_path),
+                          entry.GetFullPath().c_str());
+  *chart_info = result;
+  return true;
 }
 
 bool PlugIn_SetSegmentSafetyPersistentCacheEnabled(int enabled) {

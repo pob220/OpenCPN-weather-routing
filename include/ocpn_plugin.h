@@ -3681,6 +3681,8 @@ struct PlugInSegmentSafetyTile {
   unsigned int hazard_summary_flags;
   int depth_complete;
   char chart_path[256];
+  /** Fingerprint of every chart-table entry which can affect this tile. */
+  char dependency_identity[80];
   unsigned short *hazard_flags;
   unsigned char *has_depth;
   float *min_depth_m;
@@ -3694,6 +3696,8 @@ typedef void (*PlugInSegmentSafetyTileCacheStoreFn)(
     void *context, const PlugInSegmentSafetyTile *tile);
 typedef void (*PlugInSegmentSafetyTileCacheIdentityFn)(
     void *context, const char *identity);
+typedef void (*PlugInSegmentSafetyTileCacheDependenciesChangedFn)(
+    void *context);
 
 struct PlugInSegmentSafetyTileCacheCallbacks {
   int struct_size;
@@ -3701,6 +3705,29 @@ struct PlugInSegmentSafetyTileCacheCallbacks {
   PlugInSegmentSafetyTileCacheLookupFn lookup;
   PlugInSegmentSafetyTileCacheStoreFn store;
   PlugInSegmentSafetyTileCacheIdentityFn identity_changed;
+  PlugInSegmentSafetyTileCacheDependenciesChangedFn dependencies_changed;
+};
+
+#define PI_SEGMENT_SAFETY_CHART_INFO_ABI_V1 1
+
+/** Lightweight chart-table metadata used to estimate an optional atlas. */
+struct PlugInSegmentSafetyChartInfoV1 {
+  int struct_size;
+  int abi_version;
+  int db_index;
+  int chart_type;
+  int chart_family;
+  int chart_scale;
+  int source;
+  int available;
+  int in_active_group;
+  long long edition_time;
+  long long file_time;
+  double min_lat;
+  double min_lon;
+  double max_lat;
+  double max_lon;
+  char chart_path[512];
 };
 
 /**
@@ -3716,6 +3743,18 @@ extern "C" DECL_EXP bool PlugIn_RegisterSegmentSafetyTileCache(
 /** Copies the exact current chart-database identity into caller storage. */
 extern "C" DECL_EXP bool PlugIn_GetSegmentSafetyChartIdentity(
     char *identity, int identity_size);
+
+/** Number of chart-table ordinals which may be queried for atlas metadata. */
+extern "C" DECL_EXP int PlugIn_GetSegmentSafetyChartInfoCount();
+
+/**
+ * Return lightweight metadata for one supported vector-chart ordinal.
+ *
+ * This does not open or decrypt the chart. False means that the ordinal is
+ * not an applicable supported vector source in the current chart group.
+ */
+extern "C" DECL_EXP bool PlugIn_GetSegmentSafetyChartInfo(
+    int ordinal, PlugInSegmentSafetyChartInfoV1 *chart_info);
 
 extern "C" DECL_EXP bool PlugIn_CheckSegmentSafety(
     double lat1, double lon1, double lat2, double lon2,

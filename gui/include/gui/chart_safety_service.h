@@ -38,6 +38,43 @@ struct TileBatchBlock {
   std::set<std::pair<long, long>> tiles;
 };
 
+struct GeographicBounds {
+  double min_lat;
+  double min_lon;
+  double max_lat;
+  double max_lon;
+};
+
+/**
+ * Return the canonical coordinate for a cell on the global safety lattice.
+ *
+ * Deriving the coordinate from the global integer cell index (instead of a
+ * batch origin plus a local offset) makes a cell shared by two tiles or
+ * provider batches bit-identical in both requests.
+ */
+inline double GlobalGridCoordinate(long tile_index, int cell_offset,
+                                   int cells_per_tile,
+                                   double resolution_degrees) {
+  const long long global_cell =
+      static_cast<long long>(tile_index) * cells_per_tile + cell_offset;
+  return static_cast<double>(global_cell) * resolution_degrees;
+}
+
+/**
+ * Expand chart candidate discovery without changing the requested raster.
+ * Exact per-cell chart coverage is still tested by the caller.  The halo
+ * prevents float-precision chart extents from dropping a candidate at a
+ * shared provider-batch edge.
+ */
+inline GeographicBounds ExpandCandidateDiscoveryBounds(
+    const GeographicBounds& bounds, double grid_resolution_degrees) {
+  if (!(grid_resolution_degrees > 0.0)) return bounds;
+  return {bounds.min_lat - grid_resolution_degrees,
+          bounds.min_lon - grid_resolution_degrees,
+          bounds.max_lat + grid_resolution_degrees,
+          bounds.max_lon + grid_resolution_degrees};
+}
+
 /**
  * Partition sparse fine tiles into small geographic blocks suitable for one
  * rectangular provider-grid call.  The provider grid shares boundary cells,

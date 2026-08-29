@@ -6,6 +6,7 @@
 #define OCPN_PLUGIN_CHART_SAFETY_H
 #include <stdint.h>
 #define OCPN_PLUGIN_CHART_SAFETY_GRID_ABI_V1 1u
+#define OCPN_PLUGIN_CHART_SAFETY_RESULT_DERIVED_CACHE_ALLOWED 0x00000001u
 #define OCPN_PLUGIN_CHART_SAFETY_GRID_SYMBOL_V1 \
   "OCPN_PluginChartSafetyGridV1"
 #ifdef __cplusplus
@@ -35,7 +36,7 @@ typedef struct OCPN_PluginChartSafetyGridResultV1 {
   uint32_t processed_cells;
   uint32_t candidate_objects;
   uint32_t hit_objects;
-  uint32_t reserved;
+  uint32_t result_flags;
 } OCPN_PluginChartSafetyGridResultV1;
 /* Returns 1 for complete, 0 for unsupported, and -1 for error. */
 typedef int (*OCPN_PluginChartSafetyGridFnV1)(

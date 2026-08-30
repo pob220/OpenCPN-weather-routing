@@ -983,6 +983,9 @@ set(GUI_SRC
     ${GUI_SRC_DIR}/notification_manager_gui.cpp
     ${GUI_SRC_DIR}/ocp_cursor.cpp
     ${GUI_SRC_DIR}/ocpn_app.cpp
+    ${GUI_SRC_DIR}/chart_safety_core.cpp
+    ${GUI_SRC_DIR}/chart_safety_facade.cpp
+    ${GUI_SRC_DIR}/chart_safety_raster.cpp
     ${GUI_SRC_DIR}/ocpn_plugin_gui.cpp
     ${GUI_SRC_DIR}/ocpn_aui_manager.cpp
     ${GUI_SRC_DIR}/ocpndc.cpp

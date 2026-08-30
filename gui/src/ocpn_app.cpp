@@ -365,6 +365,20 @@ void MyApp::RegisterApiEventCallback(
     m_api_events_callbacks.erase(plugin_name);
 }
 
+bool MyApp::RegisterChartSafetyProvider(
+    const std::string &plugin_name,
+    const HostApi122::ChartSafetyProviderCallbacks *callbacks) {
+  return g_pi_manager &&
+         g_pi_manager->RegisterChartSafetyProvider(plugin_name, callbacks);
+}
+
+bool MyApp::RegisterSegmentSafetyTileCache(
+    const std::string &plugin_name,
+    const HostApi122::SegmentSafetyTileCacheCallbacks *callbacks) {
+  return g_pi_manager &&
+         g_pi_manager->RegisterSegmentSafetyTileCache(plugin_name, callbacks);
+}
+
 class WallpaperFrame : public wxFrame {
 public:
   WallpaperFrame()
@@ -469,8 +483,7 @@ bool DoNavMessage(wxString &new_version_string) {
   // enter this modal event loop while OpenCPN is still constructing core
   // navigation managers. The disclaimer remains unchanged for every normal
   // OpenCPN launch.
-  const char* weather_routing_headless =
-      getenv("WR_HEADLESS_ROUTE_TEST");
+  const char *weather_routing_headless = getenv("WR_HEADLESS_ROUTE_TEST");
   if (weather_routing_headless && *weather_routing_headless) {
     n_NavMessageShown = 1;
     wxLogMessage("WR_HEADLESS_ROUTE_TEST startup disclaimer suppressed");
@@ -1555,9 +1568,9 @@ void MyApp::BuildMainFrame() {
     gFrame->Maximize(true);
 #endif
 
-    //      All set to go.....
+  //      All set to go.....
 
-    // Process command line option to rebuild cache
+  // Process command line option to rebuild cache
 #ifdef ocpnUSE_GL
   extern ocpnGLOptions g_GLOptions;
 
@@ -1665,8 +1678,8 @@ void MyApp::BuildMainFrame() {
 
   if (!bno_load) g_pauimgr->LoadPerspective(perspective, false);
 
-    // Touch up the AUI manager
-    //  Make sure that any pane width is reasonable default value
+  // Touch up the AUI manager
+  //  Make sure that any pane width is reasonable default value
 #if 0  // TODO nees this?
   for (unsigned int i = 0; i < g_canvasArray.GetCount(); i++) {
     ChartCanvas *cc = g_canvasArray.Item(i);

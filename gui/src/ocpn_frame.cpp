@@ -110,6 +110,7 @@
 #include "chartbase.h"
 #include "chart_ctx_factory.h"
 #include "chartdb.h"
+#include "chart_safety_api.h"
 #include "chcanv.h"
 #include "tc_win.h"
 #include "cm93.h"
@@ -4581,8 +4582,6 @@ void MyFrame::PositionIENCToolbar() {
 // Defered initialization for anything that is not required to render the
 // initial frame and takes a while to initialize.  This gets opencpn up and
 // running much faster.
-extern wxString PlugIn_SegmentSafetyPointDiagnostic(double lat, double lon);
-
 namespace {
 
 struct PointSafetyDiagnosticCase {
@@ -4603,25 +4602,25 @@ struct SegmentSafetyDiagnosticCase {
 
 const char *SegmentSafetyStatusName(int status) {
   switch (status) {
-    case PI_SEGMENT_SAFETY_SAFE:
+    case ocpn::chart_safety::kSafe:
       return "SAFE";
-    case PI_SEGMENT_SAFETY_CROSSES_LAND:
+    case ocpn::chart_safety::kCrossesLand:
       return "CROSSES_LAND";
-    case PI_SEGMENT_SAFETY_WITHIN_LAND_MARGIN:
+    case ocpn::chart_safety::kWithinLandMargin:
       return "WITHIN_LAND_MARGIN";
-    case PI_SEGMENT_SAFETY_UNSAFE_AREA:
+    case ocpn::chart_safety::kUnsafeArea:
       return "UNSAFE_AREA";
-    case PI_SEGMENT_SAFETY_NO_DATA:
+    case ocpn::chart_safety::kNoData:
       return "NO_DATA";
-    case PI_SEGMENT_SAFETY_ERROR:
+    case ocpn::chart_safety::kError:
       return "ERROR";
-    case PI_SEGMENT_SAFETY_DRYING_AREA:
+    case ocpn::chart_safety::kDryingArea:
       return "DRYING_AREA";
-    case PI_SEGMENT_SAFETY_TOO_SHALLOW:
+    case ocpn::chart_safety::kTooShallow:
       return "TOO_SHALLOW";
-    case PI_SEGMENT_SAFETY_UNKNOWN_DEPTH:
+    case ocpn::chart_safety::kUnknownDepth:
       return "UNKNOWN_DEPTH";
-    case PI_SEGMENT_SAFETY_PENDING_DATA:
+    case ocpn::chart_safety::kPendingData:
       return "PENDING_DATA";
     default:
       return "UNKNOWN";
@@ -4630,15 +4629,15 @@ const char *SegmentSafetyStatusName(int status) {
 
 const char *SegmentSafetySourceName(int source) {
   switch (source) {
-    case PI_SEGMENT_SAFETY_SOURCE_NONE:
+    case ocpn::chart_safety::kSourceNone:
       return "NONE";
-    case PI_SEGMENT_SAFETY_SOURCE_VECTOR_CHART:
+    case ocpn::chart_safety::kSourceVectorChart:
       return "VECTOR_CHART";
-    case PI_SEGMENT_SAFETY_SOURCE_CM93:
+    case ocpn::chart_safety::kSourceCm93:
       return "CM93";
-    case PI_SEGMENT_SAFETY_SOURCE_GSHHS_FALLBACK:
+    case ocpn::chart_safety::kSourceGshhsFallback:
       return "GSHHS_FALLBACK";
-    case PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR:
+    case ocpn::chart_safety::kSourcePluginVector:
       return "PLUGIN_VECTOR";
     default:
       return "UNKNOWN";
@@ -4647,13 +4646,13 @@ const char *SegmentSafetySourceName(int source) {
 
 const char *SegmentSafetyHitCauseName(int cause) {
   switch (cause) {
-    case PI_SEGMENT_SAFETY_HIT_NONE:
+    case ocpn::chart_safety::kHitNone:
       return "NONE";
-    case PI_SEGMENT_SAFETY_HIT_ENDPOINT_IN_LANDARE:
+    case ocpn::chart_safety::kHitEndpointInLandArea:
       return "ENDPOINT_IN_LANDARE";
-    case PI_SEGMENT_SAFETY_HIT_SEGMENT_INTERSECTS_LANDARE_EDGE:
+    case ocpn::chart_safety::kHitSegmentIntersectsLandAreaEdge:
       return "SEGMENT_INTERSECTS_LANDARE_EDGE";
-    case PI_SEGMENT_SAFETY_HIT_MARGIN_TO_LANDARE_EDGE:
+    case ocpn::chart_safety::kHitMarginToLandAreaEdge:
       return "MARGIN_TO_LANDARE_EDGE";
     default:
       return "UNKNOWN";
@@ -4661,12 +4660,12 @@ const char *SegmentSafetyHitCauseName(int cause) {
 }
 
 bool SegmentSafetyStatusMatchesExpected(int status, int expected_status) {
-  if (expected_status == PI_SEGMENT_SAFETY_SAFE)
-    return status == PI_SEGMENT_SAFETY_SAFE;
-  if (expected_status == PI_SEGMENT_SAFETY_CROSSES_LAND)
-    return status == PI_SEGMENT_SAFETY_CROSSES_LAND ||
-           status == PI_SEGMENT_SAFETY_WITHIN_LAND_MARGIN ||
-           status == PI_SEGMENT_SAFETY_UNSAFE_AREA;
+  if (expected_status == ocpn::chart_safety::kSafe)
+    return status == ocpn::chart_safety::kSafe;
+  if (expected_status == ocpn::chart_safety::kCrossesLand)
+    return status == ocpn::chart_safety::kCrossesLand ||
+           status == ocpn::chart_safety::kWithinLandMargin ||
+           status == ocpn::chart_safety::kUnsafeArea;
   return status == expected_status;
 }
 
@@ -4674,13 +4673,13 @@ void RunSegmentSafetyDiagnostics() {
   const char *persistent_cache =
       getenv("WR_HEADLESS_PERSISTENT_CERT_SAFE_CACHE");
   if (persistent_cache)
-    PlugIn_SetSegmentSafetyPersistentCacheEnabled(
+    ocpn::chart_safety::SetPersistentCacheEnabled(
         !strcmp(persistent_cache, "1") || !strcmp(persistent_cache, "true")
             ? 1
             : 0);
   const char *clear_cache = getenv("WR_HEADLESS_CLEAR_CERT_SAFE_CACHE");
   if (clear_cache && !strcmp(clear_cache, "1"))
-    PlugIn_ClearSegmentSafetyPersistentCache();
+    ocpn::chart_safety::ClearPersistentCache();
   wxLogMessage("SEGMENT_SAFETY_TEST begin chart_only=1 fallback=0");
   int failures = 0;
 
@@ -4688,9 +4687,9 @@ void RunSegmentSafetyDiagnostics() {
   if (ochart_smoke &&
       (!strcmp(ochart_smoke, "1") || !strcmp(ochart_smoke, "true"))) {
     const wxString holy_island_land =
-        PlugIn_SegmentSafetyPointDiagnostic(53.300000, -4.680000);
+        ocpn::chart_safety::PointDiagnostic(53.300000, -4.680000);
     const wxString holyhead_water =
-        PlugIn_SegmentSafetyPointDiagnostic(53.325000, -4.705000);
+        ocpn::chart_safety::PointDiagnostic(53.325000, -4.705000);
     const bool land_pass =
         holy_island_land.Find("source=PLUGIN_VECTOR") != wxNOT_FOUND &&
         holy_island_land.Find("class=LAND") != wxNOT_FOUND;
@@ -4698,49 +4697,46 @@ void RunSegmentSafetyDiagnostics() {
         holyhead_water.Find("source=PLUGIN_VECTOR") != wxNOT_FOUND &&
         holyhead_water.Find("class=WATER_OR_NO_UNSAFE_AREA") != wxNOT_FOUND &&
         holyhead_water.Find("has_depth=1") != wxNOT_FOUND;
-    PlugInSegmentSafetyOptions land_options = {};
+    ocpn::chart_safety::SegmentSafetyOptions land_options = {};
     land_options.struct_size = sizeof(land_options);
     land_options.check_land = 1;
     land_options.allow_gshhs_fallback = 0;
     land_options.force_authoritative_fine_validation = 1;
-    PlugInSegmentSafetyResult land_result = {};
+    ocpn::chart_safety::SegmentSafetyResult land_result = {};
     land_result.struct_size = sizeof(land_result);
-    const bool land_segment_ok = PlugIn_CheckSegmentSafety(
+    const bool land_segment_ok = ocpn::chart_safety::CheckSegment(
         53.300000, -4.680000, 53.300000, -4.680000, &land_options,
         &land_result);
     const bool land_segment_pass =
         land_segment_ok &&
-        SegmentSafetyStatusMatchesExpected(
-            land_result.status, PI_SEGMENT_SAFETY_CROSSES_LAND) &&
-        land_result.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
+        SegmentSafetyStatusMatchesExpected(land_result.status,
+                                           ocpn::chart_safety::kCrossesLand) &&
+        land_result.source == ocpn::chart_safety::kSourcePluginVector;
 
-    PlugInSegmentSafetyOptions depth_options = land_options;
+    ocpn::chart_safety::SegmentSafetyOptions depth_options = land_options;
     depth_options.check_depth = 1;
     depth_options.minimum_depth_m = 31.0;
-    PlugInSegmentSafetyResult depth_result = {};
+    ocpn::chart_safety::SegmentSafetyResult depth_result = {};
     depth_result.struct_size = sizeof(depth_result);
-    const bool depth_segment_ok = PlugIn_CheckSegmentSafety(
+    const bool depth_segment_ok = ocpn::chart_safety::CheckSegment(
         53.325000, -4.705000, 53.325000, -4.705000, &depth_options,
         &depth_result);
     const bool depth_segment_pass =
         depth_segment_ok &&
-        depth_result.status == PI_SEGMENT_SAFETY_TOO_SHALLOW &&
-        depth_result.source == PI_SEGMENT_SAFETY_SOURCE_PLUGIN_VECTOR;
+        depth_result.status == ocpn::chart_safety::kTooShallow &&
+        depth_result.source == ocpn::chart_safety::kSourcePluginVector;
     if (!land_pass) ++failures;
     if (!water_depth_pass) ++failures;
     if (!land_segment_pass) ++failures;
     if (!depth_segment_pass) ++failures;
-    wxLogMessage(
-        "OCHART_SAFETY_SMOKE case=holy_island_land pass=%d %s",
-        land_pass ? 1 : 0, holy_island_land.c_str());
-    wxLogMessage(
-        "OCHART_SAFETY_SMOKE case=holyhead_water_depth pass=%d %s",
-        water_depth_pass ? 1 : 0, holyhead_water.c_str());
+    wxLogMessage("OCHART_SAFETY_SMOKE case=holy_island_land pass=%d %s",
+                 land_pass ? 1 : 0, holy_island_land.c_str());
+    wxLogMessage("OCHART_SAFETY_SMOKE case=holyhead_water_depth pass=%d %s",
+                 water_depth_pass ? 1 : 0, holyhead_water.c_str());
     wxLogMessage(
         "OCHART_SAFETY_SMOKE case=holy_island_route_reject pass=%d "
         "status=%s source=%s chart_path=\"%s\" hit_object=\"%s\"",
-        land_segment_pass ? 1 : 0,
-        SegmentSafetyStatusName(land_result.status),
+        land_segment_pass ? 1 : 0, SegmentSafetyStatusName(land_result.status),
         SegmentSafetySourceName(land_result.source), land_result.chart_path,
         land_result.hit_object);
     wxLogMessage(
@@ -4777,15 +4773,15 @@ void RunSegmentSafetyDiagnostics() {
 
   for (size_t i = 0; i < WXSIZEOF(point_cases); ++i) {
     const PointSafetyDiagnosticCase &pc = point_cases[i];
-    wxString diagnostic = PlugIn_SegmentSafetyPointDiagnostic(pc.lat, pc.lon);
+    wxString diagnostic = ocpn::chart_safety::PointDiagnostic(pc.lat, pc.lon);
     wxLogMessage("POINT_SAFETY_TEST point=\"%s\" lat=%.8f lon=%.8f %s", pc.name,
                  pc.lat, pc.lon, diagnostic.c_str());
   }
 
   for (int pass = 1; pass <= 2; ++pass) {
-    PlugInSegmentSafetyResult prewarm = {};
+    ocpn::chart_safety::SegmentSafetyResult prewarm = {};
     prewarm.struct_size = sizeof(prewarm);
-    PlugIn_PrewarmSegmentSafetyGridForSegment(53.325000, -4.705000, 54.000000,
+    ocpn::chart_safety::PrepareGridForSegment(53.325000, -4.705000, 54.000000,
                                               -4.835000, 0.0, &prewarm);
     wxLogMessage(
         "SEGMENT_SAFETY_GRID_TEST pass=%d route=\"Holyhead outside TSS to "
@@ -4812,20 +4808,20 @@ void RunSegmentSafetyDiagnostics() {
       -4.705000, -4.760000, -4.835000, -4.705000, -4.760000, -4.835000,
   };
   const int route_shape_counts[] = {3, 3};
-  PlugInSegmentSafetyOptions route_shape_options = {};
+  ocpn::chart_safety::SegmentSafetyOptions route_shape_options = {};
   route_shape_options.struct_size = sizeof(route_shape_options);
   route_shape_options.safety_margin_nm = 0.41;
   route_shape_options.check_land = 1;
   route_shape_options.allow_gshhs_fallback = 0;
   int route_shape_requested_tiles = -1;
   for (int pass_index = 1; pass_index <= 2; ++pass_index) {
-    PlugInSegmentSafetyResult route_shape_result = {};
+    ocpn::chart_safety::SegmentSafetyResult route_shape_result = {};
     route_shape_result.struct_size = sizeof(route_shape_result);
-    bool ok = PlugIn_PrewarmSegmentSafetyRouteMaskForPolylines(
+    bool ok = ocpn::chart_safety::PrepareRouteMaskForPolylines(
         route_shape_lats, route_shape_lons, route_shape_counts,
         WXSIZEOF(route_shape_counts), 4.0, &route_shape_options,
         &route_shape_result);
-    bool pass = ok && route_shape_result.status == PI_SEGMENT_SAFETY_SAFE &&
+    bool pass = ok && route_shape_result.status == ocpn::chart_safety::kSafe &&
                 route_shape_result.prewarm_requested_tiles > 0 &&
                 (route_shape_requested_tiles < 0 ||
                  route_shape_result.prewarm_requested_tiles ==
@@ -4851,41 +4847,41 @@ void RunSegmentSafetyDiagnostics() {
 
   const SegmentSafetyDiagnosticCase cases[] = {
       {"Holyhead outside TSS to South of Calf of Man", 53.325000, -4.705000,
-       54.000000, -4.835000, 0.0, PI_SEGMENT_SAFETY_SAFE},
+       54.000000, -4.835000, 0.0, ocpn::chart_safety::kSafe},
       {"Holyhead outside TSS to South of Calf of Man with margin", 53.325000,
-       -4.705000, 54.000000, -4.835000, 0.4, PI_SEGMENT_SAFETY_SAFE},
+       -4.705000, 54.000000, -4.835000, 0.4, ocpn::chart_safety::kSafe},
       {"Holyhead saved waypoint leg to South of Calf of Man", 53.337802,
-       -4.614540, 53.941243, -4.850975, 0.0, PI_SEGMENT_SAFETY_SAFE},
+       -4.614540, 53.941243, -4.850975, 0.0, ocpn::chart_safety::kSafe},
       {"Holy Island plotted route land crossing", 53.337802, -4.614540,
-       53.245000, -4.780000, 0.0, PI_SEGMENT_SAFETY_CROSSES_LAND},
+       53.245000, -4.780000, 0.0, ocpn::chart_safety::kCrossesLand},
       {"Holyhead offshore south-west route", 53.325000, -4.705000, 53.245000,
-       -4.780000, 0.0, PI_SEGMENT_SAFETY_SAFE},
+       -4.780000, 0.0, ocpn::chart_safety::kSafe},
       {"Portpatrick west water to inland east", 54.842500, -5.135000, 54.842500,
-       -5.085000, 0.0, PI_SEGMENT_SAFETY_CROSSES_LAND},
+       -5.085000, 0.0, ocpn::chart_safety::kCrossesLand},
       {"Portpatrick west water to inland east with margin", 54.842500,
-       -5.135000, 54.842500, -5.085000, 0.4, PI_SEGMENT_SAFETY_CROSSES_LAND},
+       -5.135000, 54.842500, -5.085000, 0.4, ocpn::chart_safety::kCrossesLand},
       {"Portpatrick nearshore offshore parallel", 54.825000, -5.210000,
-       54.875000, -5.210000, 0.0, PI_SEGMENT_SAFETY_SAFE},
+       54.875000, -5.210000, 0.0, ocpn::chart_safety::kSafe},
       {"Portpatrick Killantringan visible land crossing", 54.875000, -5.110000,
-       54.770000, -5.010000, 0.0, PI_SEGMENT_SAFETY_CROSSES_LAND},
+       54.770000, -5.010000, 0.0, ocpn::chart_safety::kCrossesLand},
       {"Mull of Galloway Drummore visible land crossing", 54.760000, -5.050000,
-       54.700000, -4.570000, 0.0, PI_SEGMENT_SAFETY_CROSSES_LAND},
+       54.700000, -4.570000, 0.0, ocpn::chart_safety::kCrossesLand},
       {"Mull of Galloway offshore west parallel", 54.630000, -5.120000,
-       54.800000, -5.120000, 0.0, PI_SEGMENT_SAFETY_SAFE},
+       54.800000, -5.120000, 0.0, ocpn::chart_safety::kSafe},
   };
 
   for (size_t i = 0; i < WXSIZEOF(cases); ++i) {
     const SegmentSafetyDiagnosticCase &tc = cases[i];
-    PlugInSegmentSafetyOptions options = {};
+    ocpn::chart_safety::SegmentSafetyOptions options = {};
     options.struct_size = sizeof(options);
     options.safety_margin_nm = tc.safety_margin_nm;
     options.check_land = 1;
     options.allow_gshhs_fallback = 0;
 
-    PlugInSegmentSafetyResult result = {};
+    ocpn::chart_safety::SegmentSafetyResult result = {};
     result.struct_size = sizeof(result);
-    bool ok = PlugIn_CheckSegmentSafety(tc.lat1, tc.lon1, tc.lat2, tc.lon2,
-                                        &options, &result);
+    bool ok = ocpn::chart_safety::CheckSegment(tc.lat1, tc.lon1, tc.lat2,
+                                               tc.lon2, &options, &result);
     bool pass = ok && SegmentSafetyStatusMatchesExpected(result.status,
                                                          tc.expected_status);
     if (!pass) ++failures;
@@ -4950,24 +4946,23 @@ void RunSegmentSafetyDiagnostics() {
       // DRVAL1=100 m at the south endpoint and 50 m at the north endpoint.
       // The older 1:1,000,000 composite view reported DRVAL1=0 here.
       {"Portpatrick offshore low-depth requirement", 54.825000, -5.210000,
-       54.875000, -5.210000, 1.0, PI_SEGMENT_SAFETY_SAFE},
+       54.875000, -5.210000, 1.0, ocpn::chart_safety::kSafe},
       // The highest-resolution local CM93 coverage classifies the start point
       // as LNDARE.  Land takes precedence over the segment's depth requirement.
       {"Mull land-start depth requirement", 54.680000, -4.870000, 54.700000,
-       -4.570000, 1.0, PI_SEGMENT_SAFETY_CROSSES_LAND},
+       -4.570000, 1.0, ocpn::chart_safety::kCrossesLand},
       {"Portpatrick offshore deliberately too-deep requirement", 54.825000,
-       -5.210000, 54.875000, -5.210000, 250.0, PI_SEGMENT_SAFETY_TOO_SHALLOW},
+       -5.210000, 54.875000, -5.210000, 250.0, ocpn::chart_safety::kTooShallow},
       {"Holyhead routing endpoint egress at 5m", 53.33780167, -4.61454000,
-       53.35757936, -4.62341848, 5.0, PI_SEGMENT_SAFETY_SAFE},
+       53.35757936, -4.62341848, 5.0, ocpn::chart_safety::kSafe},
       {"Foyle routing endpoint ingress at 5m", 55.18497803, -6.83744464,
-       55.21778325, -6.84757615, 5.0, PI_SEGMENT_SAFETY_SAFE},
+       55.21778325, -6.84757615, 5.0, ocpn::chart_safety::kSafe},
       {"Holyhead recovered depth-boundary segment at 5m", 53.34746092,
-       -4.61095280, 53.35716619, -4.60734769, 5.0,
-       PI_SEGMENT_SAFETY_SAFE},
+       -4.61095280, 53.35716619, -4.60734769, 5.0, ocpn::chart_safety::kSafe},
   };
   for (size_t i = 0; i < WXSIZEOF(depth_cases); ++i) {
     const SegmentSafetyDepthDiagnosticCase &tc = depth_cases[i];
-    PlugInSegmentSafetyOptions options = {};
+    ocpn::chart_safety::SegmentSafetyOptions options = {};
     options.struct_size = sizeof(options);
     options.safety_margin_nm = 0.0;
     options.check_land = 1;
@@ -4975,10 +4970,10 @@ void RunSegmentSafetyDiagnostics() {
     options.check_depth = 1;
     options.minimum_depth_m = tc.minimum_depth_m;
 
-    PlugInSegmentSafetyResult result = {};
+    ocpn::chart_safety::SegmentSafetyResult result = {};
     result.struct_size = sizeof(result);
-    bool ok = PlugIn_CheckSegmentSafety(tc.lat1, tc.lon1, tc.lat2, tc.lon2,
-                                        &options, &result);
+    bool ok = ocpn::chart_safety::CheckSegment(tc.lat1, tc.lon1, tc.lat2,
+                                               tc.lon2, &options, &result);
     bool pass = ok && SegmentSafetyStatusMatchesExpected(result.status,
                                                          tc.expected_status);
     if (!pass) ++failures;
@@ -5042,39 +5037,39 @@ void RunSegmentSafetyDiagnostics() {
   const FinalRouteDiagnosticCase final_cases[] = {
       {"Holy Island final route with chart land crossing",
        holy_island_bad_route, WXSIZEOF(holy_island_bad_route),
-       PI_SEGMENT_SAFETY_CROSSES_LAND},
+       ocpn::chart_safety::kCrossesLand},
       {"Holyhead final route offshore", holyhead_offshore_route,
-       WXSIZEOF(holyhead_offshore_route), PI_SEGMENT_SAFETY_SAFE},
+       WXSIZEOF(holyhead_offshore_route), ocpn::chart_safety::kSafe},
       {"Portpatrick final route with chart land crossing",
        portpatrick_bad_route, WXSIZEOF(portpatrick_bad_route),
-       PI_SEGMENT_SAFETY_CROSSES_LAND},
+       ocpn::chart_safety::kCrossesLand},
       {"Portpatrick final route offshore", portpatrick_offshore_route,
-       WXSIZEOF(portpatrick_offshore_route), PI_SEGMENT_SAFETY_SAFE},
+       WXSIZEOF(portpatrick_offshore_route), ocpn::chart_safety::kSafe},
       {"Mull of Galloway final route with chart land crossing", mull_bad_route,
-       WXSIZEOF(mull_bad_route), PI_SEGMENT_SAFETY_CROSSES_LAND},
+       WXSIZEOF(mull_bad_route), ocpn::chart_safety::kCrossesLand},
       {"Mull of Galloway final route offshore", mull_offshore_route,
-       WXSIZEOF(mull_offshore_route), PI_SEGMENT_SAFETY_SAFE},
+       WXSIZEOF(mull_offshore_route), ocpn::chart_safety::kSafe},
   };
   for (size_t i = 0; i < WXSIZEOF(final_cases); ++i) {
     const FinalRouteDiagnosticCase &fc = final_cases[i];
-    int route_status = PI_SEGMENT_SAFETY_SAFE;
+    int route_status = ocpn::chart_safety::kSafe;
     size_t failed_segment = 0;
-    PlugInSegmentSafetyResult failed_result = {};
+    ocpn::chart_safety::SegmentSafetyResult failed_result = {};
     for (size_t j = 1; j < fc.point_count; ++j) {
-      PlugInSegmentSafetyOptions options = {};
+      ocpn::chart_safety::SegmentSafetyOptions options = {};
       options.struct_size = sizeof(options);
       options.safety_margin_nm = 0.0;
       options.check_land = 1;
       options.allow_gshhs_fallback = 0;
       options.force_authoritative_fine_validation = 1;
-      PlugInSegmentSafetyResult result = {};
+      ocpn::chart_safety::SegmentSafetyResult result = {};
       result.struct_size = sizeof(result);
-      PlugIn_CheckSegmentSafety(fc.points[j - 1].lat, fc.points[j - 1].lon,
-                                fc.points[j].lat, fc.points[j].lon, &options,
-                                &result);
-      if (result.status == PI_SEGMENT_SAFETY_CROSSES_LAND ||
-          result.status == PI_SEGMENT_SAFETY_WITHIN_LAND_MARGIN ||
-          result.status == PI_SEGMENT_SAFETY_UNSAFE_AREA) {
+      ocpn::chart_safety::CheckSegment(fc.points[j - 1].lat,
+                                       fc.points[j - 1].lon, fc.points[j].lat,
+                                       fc.points[j].lon, &options, &result);
+      if (result.status == ocpn::chart_safety::kCrossesLand ||
+          result.status == ocpn::chart_safety::kWithinLandMargin ||
+          result.status == ocpn::chart_safety::kUnsafeArea) {
         route_status = result.status;
         failed_segment = j;
         failed_result = result;

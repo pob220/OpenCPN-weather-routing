@@ -28,6 +28,7 @@
 #include <atomic>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "config.h"
 
@@ -61,7 +62,6 @@
 #include "chartimg.h"
 #include "ocpndc.h"
 #include "ocpn_plugin.h"
-#include "ocpn_plugin_chart_safety.h"
 #include "s57chart.h"  // for Object list
 #include "top_frame.h"
 
@@ -267,11 +267,18 @@ public:
                                                 float zlat, float zlon,
                                                 float SelectRadius,
                                                 const ViewPort& vp);
-  int QueryPlugInChartSafetyGrid(
+  HostApi122::ChartSafetyProviderStatus QueryPlugInChartSafetyGrid(
       ChartPlugInWrapper* target,
-      const OCPN_PluginChartSafetyGridRequestV1& request,
-      OCPN_PluginChartSafetyGridResultV1* result, const ViewPort& vp);
+      const HostApi122::ChartSafetyProviderRequest& request,
+      HostApi122::ChartSafetyProviderResult* result, const ViewPort& vp);
   bool HasPlugInChartSafetyGrid() const;
+  bool HasChartSafetyProvider(const std::string& plugin_name) const;
+  bool RegisterChartSafetyProvider(
+      const std::string& plugin_name,
+      const HostApi122::ChartSafetyProviderCallbacks* callbacks);
+  bool RegisterSegmentSafetyTileCache(
+      const std::string& plugin_name,
+      const HostApi122::SegmentSafetyTileCacheCallbacks* callbacks);
   wxString CreateObjDescriptions(ChartPlugInWrapper* target,
                                  ListOfPI_S57Obj* rule_list);
 
@@ -310,6 +317,9 @@ private:
   obs::Listener m_on_msg_sent_listener;
 
   std::unordered_map<std::string, obs::Listener> m_0183_listeners;
+  std::unordered_map<std::string, HostApi122::ChartSafetyProviderCallbacks>
+      m_chart_safety_providers;
+  std::string m_chart_safety_tile_cache_owner;
 
   wxBitmap* BuildDimmedToolBitmap(wxBitmap* pbmp_normal,
                                   unsigned char dim_ratio);

@@ -72,6 +72,12 @@ public:
   void RegisterApiEventCallback(
       const std::string& plugin_name,
       std::function<void(HostApi122::EventType what)> callback) override;
+  bool RegisterChartSafetyProvider(
+      const std::string& plugin_name,
+      const HostApi122::ChartSafetyProviderCallbacks* callbacks) override;
+  bool RegisterSegmentSafetyTileCache(
+      const std::string& plugin_name,
+      const HostApi122::SegmentSafetyTileCacheCallbacks* callbacks) override;
 
 #ifdef LINUX_CRASHRPT
   //! fatal exeption handling

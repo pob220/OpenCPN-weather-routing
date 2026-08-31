@@ -5860,11 +5860,13 @@ PrebuildSegmentSafetyPluginVectorGridTiles(
             kSegmentSafetyGridResolutionDegrees);
         const size_t index = static_cast<size_t>(row) * cols + col;
         bool selected_plugin = false;
+        bool covered_by_candidate = false;
         for (const auto& candidate : candidates) {
           if (!ChartData->ChartCoversPosition(
                   candidate.db_index, static_cast<float>(lat),
                   static_cast<float>(lon)))
             continue;
+          covered_by_candidate = true;
           if (stats) ++stats->chart_stack_entries;
           if (candidate.plugin_vector) {
             depth_candidates[index].push_back(candidate.db_index);
@@ -5886,6 +5888,21 @@ PrebuildSegmentSafetyPluginVectorGridTiles(
             continue;
           }
           if (!candidate.cm93) break;
+        }
+        // Coverage-polygon edge tiles commonly contain many cells outside
+        // every chart. The provider batch has already considered every chart
+        // whose bounds overlap this block, so these cells are authoritatively
+        // NO_CHART. Leaving them unclassified forced the compatibility path
+        // to repeat full chart-stack selection hundreds of times per tile;
+        // on licensed overview charts that blocked the GUI for several
+        // seconds despite the provider query itself taking under a
+        // millisecond.
+        if (!covered_by_candidate) {
+          classified[index] = 1;
+          classes[index] =
+              static_cast<uint8_t>(SEGMENT_SAFETY_POINT_NO_DATA);
+          hazards[index] = SEGMENT_SAFETY_HAZARD_NO_CHART;
+          persistent_cache_allowed[index] = 1;
         }
       }
     }
@@ -6223,6 +6240,7 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
   std::vector<uint8_t> plugin_batch_persistent_cache_allowed(
       grid_cell_count, 0);
   std::vector<std::vector<int> > plugin_depth_candidates(grid_cell_count);
+  std::vector<int> plugin_batch_cm93_candidate(grid_cell_count, -1);
   int plugin_batch_groups = 0;
   int plugin_batch_cells = 0;
   int plugin_batch_fallback_cells = 0;
@@ -6250,6 +6268,7 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
             lon_tile, c, kTileCells, tile.resolution);
         const size_t index = static_cast<size_t>(r) * tile.cols + c;
         bool selected_plugin = false;
+        bool covered_by_candidate = false;
         for (std::vector<SegmentSafetyChartCandidate>::const_iterator it =
                  tile_candidates.begin();
              it != tile_candidates.end(); ++it) {
@@ -6257,6 +6276,7 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
                   it->db_index, static_cast<float>(cell_lat),
                   static_cast<float>(cell_lon)))
             continue;
+          covered_by_candidate = true;
           if (stats) ++stats->chart_stack_entries;
           if (it->plugin_vector) {
             plugin_depth_candidates[index].push_back(it->db_index);
@@ -6282,6 +6302,22 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
           // native vector chart therefore supersedes later plugin charts; CM93
           // cannot, because it has the lower provider priority.
           if (!it->cm93) break;
+          if (!selected_plugin && plugin_batch_cm93_candidate[index] < 0)
+            plugin_batch_cm93_candidate[index] = it->db_index;
+        }
+        // SegmentSafetyTileChartCandidates() contains every vector chart
+        // whose expanded bounds can affect this tile. If none of their
+        // coverage polygons contains this cell, the exact result is
+        // NO_CHART. Preserve that result through the compatibility builder
+        // instead of running the full point-selection path again for every
+        // uncovered cell on an o-chart coverage edge.
+        if (!covered_by_candidate) {
+          plugin_batch_classified[index] = 1;
+          plugin_batch_persistent_cache_allowed[index] = 1;
+          tile.classes[index] =
+              static_cast<unsigned char>(SEGMENT_SAFETY_POINT_NO_DATA);
+          tile.hazard_flags[index] = SEGMENT_SAFETY_HAZARD_NO_CHART;
+          tile.hazard_summary_flags |= SEGMENT_SAFETY_HAZARD_NO_CHART;
         }
       }
     }
@@ -6306,7 +6342,9 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
           const double cell_lon = ocpn::chart_safety::GlobalGridCoordinate(
               lon_tile, c, kTileCells, tile.resolution);
           const size_t index = static_cast<size_t>(r) * tile.cols + c;
-          if (!plugin_depth_candidates[index].empty()) continue;
+          if (plugin_batch_classified[index] ||
+              !plugin_depth_candidates[index].empty())
+            continue;
           std::set<int> stack_indexes;
           SegmentSafetyCandidateChartsAt(cell_lat, cell_lon, stack_indexes,
                                          stats);
@@ -6561,6 +6599,8 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
   // the general per-point selection path so chart priority is unchanged.
   cm93compchart* prepared_cm93 = NULL;
   int prepared_cm93_db_index = -1;
+  bool prepared_cm93_selected_by_batch = false;
+  bool prepared_cm93_covers_all_fallback_cells = false;
   ViewPort prepared_cm93_vp;
   long cm93_prepare_ms = 0;
   int cm93_batch_cells = 0;
@@ -6574,11 +6614,26 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
         tile.min_lat + kSegmentSafetyGridTileDegrees / 2.0;
     const double centre_lon =
         tile.min_lon + kSegmentSafetyGridTileDegrees / 2.0;
-    std::set<int> centre_chart_indexes;
-    SegmentSafetyCandidateChartsAt(centre_lat, centre_lon, centre_chart_indexes,
-                                   stats);
-    if (centre_chart_indexes.size() == 1) {
-      prepared_cm93_db_index = *centre_chart_indexes.begin();
+    // At a licensed-chart coverage edge the plugin batch has already
+    // selected the authoritative chart wherever it applies. Prepare the
+    // lower-priority CM93 candidate once for the remaining cells instead of
+    // rebuilding its viewport hundreds of times through the point fallback.
+    for (size_t index = 0; index < grid_cell_count; ++index) {
+      if (!plugin_batch_classified[index] &&
+          plugin_batch_cm93_candidate[index] >= 0) {
+        prepared_cm93_db_index = plugin_batch_cm93_candidate[index];
+        prepared_cm93_selected_by_batch = true;
+        break;
+      }
+    }
+    if (prepared_cm93_db_index < 0) {
+      std::set<int> centre_chart_indexes;
+      SegmentSafetyCandidateChartsAt(centre_lat, centre_lon,
+                                     centre_chart_indexes, stats);
+      if (centre_chart_indexes.size() == 1)
+        prepared_cm93_db_index = *centre_chart_indexes.begin();
+    }
+    if (prepared_cm93_db_index >= 0) {
       ChartBase* chart =
           ChartData->OpenChartFromDB(prepared_cm93_db_index, FULL_INIT);
       prepared_cm93 = dynamic_cast<cm93compchart*>(chart);
@@ -6598,6 +6653,16 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
         cm93_prepare_ms = prepare_timer.Time();
       }
     }
+    if (prepared_cm93 && prepared_cm93_selected_by_batch) {
+      prepared_cm93_covers_all_fallback_cells = true;
+      for (size_t index = 0; index < grid_cell_count; ++index) {
+        if (!plugin_batch_classified[index] &&
+            plugin_batch_cm93_candidate[index] != prepared_cm93_db_index) {
+          prepared_cm93_covers_all_fallback_cells = false;
+          break;
+        }
+      }
+    }
   }
 
   // Most cold-route CM93 work is in 1,681 repeated point-in-object scans per
@@ -6607,7 +6672,10 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
   // conservative shortcut: coastal/ambiguous tiles retain exact
   // classification, and depth-enabled routing also retains exact DEPARE
   // extraction.
-  if (prepared_cm93 && !require_depth &&
+  if (prepared_cm93 &&
+      (!prepared_cm93_selected_by_batch ||
+       prepared_cm93_covers_all_fallback_cells) &&
+      !require_depth &&
       !prepared_cm93->SafetyAreaHazardMayIntersect(
           tile.min_lat, tile.min_lat + kSegmentSafetyGridTileDegrees,
           tile.min_lon, tile.min_lon + kSegmentSafetyGridTileDegrees,
@@ -6665,8 +6733,13 @@ CachedPointSafetyGridTile BuildSegmentSafetyGridTile(
       cell_result.struct_size = sizeof(cell_result);
       InitSegmentSafetyResult(&cell_result);
       SegmentSafetyPointClass point_class = SEGMENT_SAFETY_POINT_NO_DATA;
+      const bool prepared_cm93_applies =
+          prepared_cm93 &&
+          (!prepared_cm93_selected_by_batch ||
+           plugin_batch_cm93_candidate[cell_index] ==
+               prepared_cm93_db_index);
       cm93chart* prepared_point_chart =
-          prepared_cm93
+          prepared_cm93_applies
               ? prepared_cm93->GetHighestDetailSafetyChartAt(cell_lat, cell_lon)
               : NULL;
       if (prepared_point_chart) {

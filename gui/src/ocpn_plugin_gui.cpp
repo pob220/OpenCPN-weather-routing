@@ -2581,6 +2581,19 @@ wxString SegmentSafetyPluginBatchProviderIdentity() {
         !pic->m_library.HasSymbol(
             OCPN_PLUGIN_CHART_SAFETY_GRID_SYMBOL_V1))
       continue;
+    OCPN_PluginChartSafetyIdentityFnV1 identity_fn =
+        reinterpret_cast<OCPN_PluginChartSafetyIdentityFnV1>(
+            pic->m_library.GetSymbol(
+                OCPN_PLUGIN_CHART_SAFETY_IDENTITY_SYMBOL_V1));
+    const char* semantic_identity = identity_fn ? identity_fn() : NULL;
+    if (semantic_identity && semantic_identity[0] &&
+        std::strlen(semantic_identity) <= 256) {
+      providers.Add("semantic=" + wxString::FromUTF8(semantic_identity));
+      continue;
+    }
+
+    // Compatibility fallback for providers which predate the stable identity
+    // export. Without one, a binary fingerprint is the only safe option.
     wxFileName file(pic->m_plugin_file);
     const wxULongLong size = file.GetSize();
     const wxDateTime modified = file.GetModificationTime();

@@ -9,6 +9,8 @@
 #define OCPN_PLUGIN_CHART_SAFETY_RESULT_DERIVED_CACHE_ALLOWED 0x00000001u
 #define OCPN_PLUGIN_CHART_SAFETY_GRID_SYMBOL_V1 \
   "OCPN_PluginChartSafetyGridV1"
+#define OCPN_PLUGIN_CHART_SAFETY_IDENTITY_SYMBOL_V1 \
+  "OCPN_PluginChartSafetyIdentityV1"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,6 +44,13 @@ typedef struct OCPN_PluginChartSafetyGridResultV1 {
 typedef int (*OCPN_PluginChartSafetyGridFnV1)(
     void *plugin_chart, const OCPN_PluginChartSafetyGridRequestV1 *request,
     OCPN_PluginChartSafetyGridResultV1 *result);
+/*
+ * Returns a stable identifier for the provider's chart-safety semantics.
+ * Change the returned value only when identical requests can produce
+ * materially different classifications. It must not contain build paths,
+ * timestamps or other installation-specific data.
+ */
+typedef const char *(*OCPN_PluginChartSafetyIdentityFnV1)(void);
 #ifdef __cplusplus
 }
 #endif

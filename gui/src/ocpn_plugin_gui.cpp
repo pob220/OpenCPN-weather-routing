@@ -8378,6 +8378,7 @@ bool PlugIn_ServicePendingSegmentSafetyRequests(
   int serviced = 0;
   int built_count = 0;
   int prefetched_count = 0;
+  int coarse_certified_count = 0;
   int failed = 0;
 
   while ((max_requests <= 0 || serviced < max_requests) &&
@@ -8405,29 +8406,44 @@ bool PlugIn_ServicePendingSegmentSafetyRequests(
                   request.check_depth, request.minimum_depth_m, NULL, &built,
                   request.force_authoritative_fine);
     // A worker stops at the first absent mask and can otherwise incur one GUI
-    // timer wake-up per 0.05-degree tile.  Populate the immediately adjacent
-    // exact masks while the chart is already active on the main thread.  This
+    // timer wake-up per 0.05-degree tile. Populate a bounded lookahead set of
+    // exact masks while the chart is already active on the main thread. This
     // changes only scheduling/cache locality: every neighbour is built by the
     // same authoritative code as an on-demand request.  Do not fan out from
     // an all-blocked centre tile: propagation cannot continue through it, and
-    // prefetching eight more inland tiles was pure work.  Keep independent
+    // prefetching more inland tiles is pure work. Keep independent
     // force-fine validation demand-only to avoid speculative validation work.
     CachedSegmentSafetyRouteMaskTile centre_mask;
     const bool useful_to_prefetch_neighbours =
         ok && LookupSegmentSafetyRouteMaskTile(request.key, &centre_mask) &&
         centre_mask.clear_count > 0;
     if (useful_to_prefetch_neighbours && !request.force_authoritative_fine) {
-      bool budget_exhausted = false;
-      for (int dlat = -1; dlat <= 1; ++dlat) {
-        for (int dlon = -1; dlon <= 1; ++dlon) {
-          if (dlat == 0 && dlon == 0) continue;
+      std::vector<std::pair<long, long> > lookahead =
+          ocpn::chart_safety::PlanAdaptiveLookaheadTiles(
+              request.lat_tile, request.lon_tile, request.check_depth,
+              request.force_authoritative_fine,
+              kSegmentSafetyCoarseRouteMaskFactor);
+      const bool adaptive_coarse_lookahead = !lookahead.empty();
+      // Depth-aware and compatibility requests retain the original immediate
+      // neighbours. Clear land-only ocean requests use one aligned 0.2-degree
+      // scheduling block, reducing one GUI wake-up per crossed fine tile.
+      if (lookahead.empty()) {
+        for (int dlat = -1; dlat <= 1; ++dlat)
+          for (int dlon = -1; dlon <= 1; ++dlon)
+            if (dlat != 0 || dlon != 0)
+              lookahead.push_back(
+                  std::make_pair(request.lat_tile + dlat,
+                                 request.lon_tile + dlon));
+      }
+      for (std::vector<std::pair<long, long> >::const_iterator tile =
+               lookahead.begin();
+           tile != lookahead.end(); ++tile) {
           if (!ocpn::chart_safety::MayPrefetchNeighbour(timer.Time(),
                                                         max_milliseconds)) {
-            budget_exhausted = true;
             break;
           }
-          const long neighbour_lat_tile = request.lat_tile + dlat;
-          const long neighbour_lon_tile = request.lon_tile + dlon;
+          const long neighbour_lat_tile = tile->first;
+          const long neighbour_lon_tile = tile->second;
           const double neighbour_min_lat =
               neighbour_lat_tile * kSegmentSafetyGridTileDegrees;
           const double neighbour_min_lon =
@@ -8444,8 +8460,25 @@ bool PlugIn_ServicePendingSegmentSafetyRequests(
             ++built_count;
             ++prefetched_count;
           }
-        }
-        if (budget_exhausted) break;
+      }
+      // A completed aligned block is already backed by all sixteen exact
+      // fine masks. Promote that evidence into the existing conservative
+      // coarse cache so later open-water segments can bypass repeated fine
+      // sampling. EnsureSegmentSafetyCoarseRouteMaskCell refuses incomplete,
+      // mixed, no-chart and depth-unproven evidence; no chart classification
+      // is weakened or inferred here.
+      if (adaptive_coarse_lookahead) {
+        const long coarse_lat = (long)floor(
+            (double)request.lat_tile / kSegmentSafetyCoarseRouteMaskFactor);
+        const long coarse_lon = (long)floor(
+            (double)request.lon_tile / kSegmentSafetyCoarseRouteMaskFactor);
+        CachedSegmentSafetyCoarseRouteMaskCell coarse;
+        if (EnsureSegmentSafetyCoarseRouteMaskCell(
+                coarse_lat, coarse_lon, request.safety_margin_nm,
+                request.check_depth, request.minimum_depth_m, &coarse,
+                NULL) &&
+            coarse.state == SEGMENT_SAFETY_COARSE_CERTIFIED_SAFE)
+          ++coarse_certified_count;
       }
     }
     {
@@ -8476,10 +8509,11 @@ bool PlugIn_ServicePendingSegmentSafetyRequests(
   if (serviced > 0 || pending_before > 0) {
     wxLogMessage(
         "WR_GRID_REQUEST_SERVICE pending_before=%d serviced=%d built=%d "
-        "prefetched=%d failed=%d pending_after=%d elapsed_ms=%ld "
+        "prefetched=%d coarse_certified=%d failed=%d pending_after=%d "
+        "elapsed_ms=%ld "
         "main_thread=1",
-        pending_before, serviced, built_count, prefetched_count, failed,
-        pending_after, timer.Time());
+        pending_before, serviced, built_count, prefetched_count,
+        coarse_certified_count, failed, pending_after, timer.Time());
   }
   return failed == 0;
 }

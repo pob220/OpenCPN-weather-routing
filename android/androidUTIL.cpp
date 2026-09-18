@@ -2133,7 +2133,8 @@ wxString androidGetDeviceInfo() {
       }
     }
     if (wxNOT_FOUND != s1.Find(_T("opencpn"))) {
-      strcpy(&android_plat_spc.hn[0], s1.c_str());
+      snprintf(android_plat_spc.hn, sizeof(android_plat_spc.hn), "%s",
+               s1.utf8_str().data());
     }
     if (wxNOT_FOUND !=
         s1.Find(_T("Model (and Product): "))) {  // Model (and Product):
@@ -3136,10 +3137,22 @@ int androidFileChooser(wxString *result, const wxString &initDir,
                                               title, suggestion, wildcard);
 
       if (activityResult == _T("OK")) {
-        return wxID_OK;
-      } else if (activityResult == "cancel:") {
+        // Scoped storage opens the system document picker asynchronously.
+        // Wait for its result before returning to callers expecting a path.
+        auto started = std::chrono::steady_clock::now();
+        while (activityResult == _T("OK") || activityResult == _T("no")) {
+          if (std::chrono::steady_clock::now() - started >
+              std::chrono::minutes(5))
+            return wxID_CANCEL;
+          wxYield();
+          std::this_thread::sleep_for(std::chrono::milliseconds(20));
+          activityResult = callActivityMethod_vs("isFileChooserFinished");
+        }
+      }
+
+      if (activityResult == "cancel:") {
         return wxID_CANCEL;
-      } else {
+      } else if (activityResult.StartsWith("file:")) {
         *result = activityResult.AfterFirst(':');
         return wxID_OK;
       }

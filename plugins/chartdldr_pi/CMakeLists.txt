@@ -38,6 +38,11 @@ if (DEFINED LibArchive_VERSION AND LibArchive_VERSION VERSION_GREATER 3.7.3)
 else ()
   option(CHARTDLDR_USE_UNARR "Use unarr to extract RAR archives" ON)
 endif ()
+if (CMAKE_SYSTEM_NAME STREQUAL "Android")
+  # Android uses the bundled unarr implementation for archive extraction.
+  # Without it the plugin retains unresolved ar_* symbols and fails at load.
+  set(CHARTDLDR_USE_UNARR ON CACHE BOOL "Use unarr on Android" FORCE)
+endif ()
 if (CHARTDLDR_USE_UNARR)
   add_definitions(-DCHARTDLDR_RAR_UNARR)
 endif ()

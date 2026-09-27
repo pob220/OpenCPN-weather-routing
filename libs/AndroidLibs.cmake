@@ -16,21 +16,29 @@ set(_master_base ${OCPN_ANDROID_CACHEDIR}/OCPNAndroidCoreBuildSupport)
 message(STATUS "Android Build support file base:  ${OCPN_ANDROID_CACHEDIR}/OCPNAndroidCoreBuildSupport")
 
 
-if (TRUE) #(NOT EXISTS ${OCPN_ANDROID_CACHEDIR}/support.zip)
+if (NOT EXISTS ${OCPN_ANDROID_CACHEDIR}/support.zip)
   file(
     DOWNLOAD
       https://github.com/bdbcat/OCPNAndroidCoreBuildSupport/releases/download/v1.2/OCPNAndroidCoreBuildSupport.zip
       ${OCPN_ANDROID_CACHEDIR}/support.zip
-#    EXPECTED_HASH
-#      SHA256=ac36afaf4f026e9b2624a963f5356f5b1fb2c45dec1134209333a8b46fb05ca0
+    EXPECTED_HASH
+      SHA256=c4110c532e9a0bcf071bbd10fe6f7627d7e91380c803c52ac0e89ce5f993db9b
     SHOW_PROGRESS
   )
 endif ()
-if (TRUE) #(NOT EXISTS ${_master_base})
+file(SHA256 ${OCPN_ANDROID_CACHEDIR}/support.zip _support_sha256)
+if (NOT _support_sha256 STREQUAL "c4110c532e9a0bcf071bbd10fe6f7627d7e91380c803c52ac0e89ce5f993db9b")
+  message(FATAL_ERROR "Android core support v1.2 checksum mismatch")
+endif ()
+if (NOT EXISTS ${_master_base})
   execute_process(
     COMMAND ${CMAKE_COMMAND} -E tar -xzf ${OCPN_ANDROID_CACHEDIR}/support.zip
     WORKING_DIRECTORY "${OCPN_ANDROID_CACHEDIR}"
+    RESULT_VARIABLE _support_extract_result
   )
+  if (NOT _support_extract_result EQUAL 0)
+    message(FATAL_ERROR "Android core support extraction failed")
+  endif ()
 endif ()
 
 # testing

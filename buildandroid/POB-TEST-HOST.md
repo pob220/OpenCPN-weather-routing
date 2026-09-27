@@ -34,9 +34,11 @@ assets, resources and non-signature META-INF entries must remain identical.
 ## Reproduction
 
 Use NDK 26.1.10909125, the checksum-pinned v1.2 Android core support archive
-(Qt 5.12.2/wxQt 3.1.5), Android API 21 native compiler, JDK 21 and Android
+(Qt 5.12.2/custom wxQt 3.1), Android API 21 native compiler, JDK 21 and Android
 build-tools 35.0.0. Core configure uses the existing Android-arm64;33;arm64
-tuple. Set ZLIB_LIBRARY_RELEASE to the NDK sysroot's
+tuple. Lunasvg is pinned to cf3594d5232e075fb344365191f0ecadd1519e1e;
+build its target before gorp because the baseline core linker references its
+archive without declaring the target dependency. Set ZLIB_LIBRARY_RELEASE to the NDK sysroot's
 usr/lib/aarch64-linux-android/21/libz.so: a desktop /lib/libz.so cached by
 FindZLIB cannot link into ARM64. Use a fresh dependency extraction for final
 acceptance, and retain full configure/compiler logs. The cache guard verifies

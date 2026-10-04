@@ -7,5 +7,5 @@ SET(VERSION_DATE "2026-04-08")
 # Keep the official desktop version unchanged on this Android-only branch.
 IF(QT_ANDROID)
   SET(VERSION_PATCH "1")
-  SET(VERSION_TAIL "-pob220-import-fix")
+  SET(VERSION_TAIL "-pob220-import-ui-fix")
 ENDIF()

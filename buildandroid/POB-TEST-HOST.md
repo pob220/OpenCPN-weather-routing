@@ -1,5 +1,20 @@
 # Unofficial Android 5.14.1-pob220-import-fix
 
+## Fresh-profile import control correction (4 October 2026)
+
+The successor tester is `5.14.1-pob220-import-ui-fix`, version code 131.
+Android's local Import plugin button is now shown regardless of CatalogExpert;
+the expert flag continues to control advanced catalogue settings. The old
+acceptance profile already had CatalogExpert=1 and therefore did not expose
+the missing control on a fresh installation. Acceptance must also cover an
+absent flag and an explicit CatalogExpert=0.
+
+The wrapper retains the four application-specific file-provider authorities
+from the coexist-fix tester. Its native library is rebuilt for this UI change;
+the remaining native libraries and bundled assets are retained. Native About
+and Android App info both show the new tester version. Published acceptance
+and source revisions are recorded in the accompanying release provenance.
+
 POBsoft (1985-2026). This is a tester build, not an official OpenCPN release.
 The runtime patch is backported from the focused upstream PR:
 https://github.com/OpenCPN/OpenCPN/pull/5457

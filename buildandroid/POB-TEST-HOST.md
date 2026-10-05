@@ -1,3 +1,21 @@
+# Android compatibility tester (5 October 2026)
+
+The isolated `fix/android-16k-pages` branch builds version
+`5.14.1-pob220-16k-test`. It adds 16 KB LOAD/RELRO-compatible linking, generates
+visible checkbox/tab-arrow fallbacks when optional Android style images are
+absent, and reports native page size in device information. It retains the
+prior import/provider/lifecycle corrections. Desktop version handling remains
+unchanged.
+
+The older packaging procedure below is historical and does not describe this
+wrapper build. Use the companion OpenCPN-Android tester repository's
+`POB-COEXISTENCE-TESTER.md` and `prepare_pob_tester_inputs.py` for this version.
+Use `relink_qt_pages.py`, `verify_android_pages.py` and its companion unit tests
+for pinned Qt reconstruction and final APK/plugin archive gates. Retain final
+committed revisions, all input/output hashes and manual acceptance evidence.
+Static alignment checks and a 4 KB tablet smoke test do not prove 16 KB runtime
+compatibility; qualification on a genuine 16 KB Android environment is required.
+
 # Unofficial Android 5.14.1-pob220-import-fix
 
 ## Fresh-profile import control correction (4 October 2026)

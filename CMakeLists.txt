@@ -459,7 +459,7 @@ if (QT_ANDROID)
   if (CMAKE_BUILD_TYPE MATCHES "Debug")
     add_compile_options("-O0")
   endif ()
-  set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-soname,libgorp.so -Wl,--build-id")
+  set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-soname,libgorp.so -Wl,--build-id -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384")
 
   include(FetchContent)
   FetchContent_Declare(

@@ -6,6 +6,7 @@ name: Windows
   push:
     branches:
       - master
+      - ci/hostapi123-1.30-core-checks
     paths-ignore:
       - 'buildandroid/**'
   pull_request:
@@ -79,5 +80,5 @@ jobs:
         shell: bash
         run: ci/generic-upload.sh
         env:
-          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+          CLOUDSMITH_API_KEY: ""
           CLOUDSMITH_REPO: ${{ secrets.CLOUDSMITH_REPO }}

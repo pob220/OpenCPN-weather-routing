@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - master
+      - ci/hostapi123-1.30-core-checks
     paths-ignore:
       - 'manual/**'
   pull_request:

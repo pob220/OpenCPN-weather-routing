@@ -48,6 +48,7 @@ def build(plugin, version, out, work):
     pinned = json.loads((Path(__file__).with_name('sources.json')).read_text())[plugin]
     source.mkdir()
     run('git', 'init', source)
+    run('git', 'config', 'core.autocrlf', 'false', cwd=source)
     run('git', 'remote', 'add', 'origin', 'https://github.com/' + repository + '.git', cwd=source)
     run('git', 'fetch', '--depth', '1', 'origin', pinned, cwd=source)
     run('git', 'checkout', '--detach', 'FETCH_HEAD', cwd=source)
@@ -90,6 +91,12 @@ def build(plugin, version, out, work):
                  '-DWEATHER_ROUTING_XWEATHER_IDENTITY=OFF',
                  '-DWEATHER_ROUTING_EXPECTED_WX_VERSION=' + version]
     if plugin == 'celnav':
+        download('https://github.com/pob220/celestial_navigation_pi/releases/'
+                 'download/eclipse-data-2026.1/de440s.bsp',
+                 source / 'eclipse/data/de440s.bsp',
+                 'c1c7feeab882263fc493a9d5a5b2ddd71b54826cdf65d8d17a76126b260a49f2')
+        # Existing GUI capture fixtures use /tmp on the current Windows drive.
+        (Path(work.anchor) / 'tmp').mkdir(exist_ok=True)
         vcpkg = Path(os.environ['VCPKG_INSTALLATION_ROOT'])
         run(vcpkg / 'vcpkg.exe', 'install', 'gtest:x64-windows')
         os.environ['PATH'] += os.pathsep + str(vcpkg / 'installed/x64-windows/bin')
@@ -124,7 +131,8 @@ def build(plugin, version, out, work):
         '-DwxWidgets_CONFIGURATION=mswu', *args)
     run('cmake', '--build', build_dir, '--config', 'Release', '--parallel', '3')
     run('ctest', '--test-dir', build_dir, '-C', 'Release', '--output-on-failure',
-        '--no-tests=error', '--timeout', '90', '--output-junit', out / 'tests.xml')
+        '--no-tests=error', '--timeout', '300' if plugin == 'celnav' else '90',
+        '--output-junit', out / 'tests.xml')
     library = build_dir / 'Release' / (identity + '.dll')
     pe_sections(library)
     imported = subprocess.check_output(['dumpbin', '/imports', library], text=True)
@@ -223,6 +231,7 @@ def installed_host(host, identity, package, receipt, out):
 
 
 def main():
+    assert sys.platform == 'win32' and os.environ.get('GITHUB_ACTIONS') == 'true'
     plugin, version = sys.argv[1:]
     assert plugin in SPECS and version in ('3.2.9', '3.3.4')
     out = ROOT / 'compatibility' / plugin / ('wx' + version)

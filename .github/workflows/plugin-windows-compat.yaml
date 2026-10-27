@@ -1,0 +1,44 @@
+name: Windows plugin toolkit qualification
+
+on:
+  push:
+    branches: [ci/windows-plugin-compatibility]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: [celnav, climatology, xgrib]
+        wx: ['3.2.9', '3.3.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build tools
+        shell: powershell
+        run: choco install gettext -y --no-progress
+      - name: Qualify matched plugin and host
+        shell: powershell
+        env:
+          PLUGIN: ${{ matrix.plugin }}
+          WX_VERSION: ${{ matrix.wx }}
+        run: |
+          $env:PATH = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + $env:PATH
+          python ci/plugin-compat/qualify.py $env:PLUGIN $env:WX_VERSION
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.plugin }}-wx${{ matrix.wx }}
+          path: compatibility/
+          if-no-files-found: warn

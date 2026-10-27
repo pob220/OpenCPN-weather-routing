@@ -76,6 +76,12 @@ def build(plugin, version, out, work):
             '-DZLIB_LIBRARY_RELEASE=' + str(sdk / 'z.lib')]
     if plugin == 'climatology':
         args += ['-DCLIMATOLOGY_WINDOWS_ZLIB_LIBRARY=' + str(sdk / 'z.lib')]
+    if plugin == 'celnav':
+        vcpkg = Path(os.environ['VCPKG_INSTALLATION_ROOT'])
+        run(vcpkg / 'vcpkg.exe', 'install', 'gtest:x64-windows')
+        os.environ['PATH'] += os.pathsep + str(vcpkg / 'installed/x64-windows/bin')
+        args += ['-DCMAKE_TOOLCHAIN_FILE=' + str(vcpkg / 'scripts/buildsystems/vcpkg.cmake'),
+                 '-DVCPKG_TARGET_TRIPLET=x64-windows']
     if plugin == 'xgrib':
         run('git', 'submodule', 'update', '--init', 'generator', cwd=source)
         # The generator runs in a separate process and has no wxWidgets ABI.

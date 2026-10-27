@@ -2,8 +2,7 @@
 """Build released plugin sources and qualify normal installed-host shutdown.
 
 Artifacts are retained for review; this workflow never publishes to a catalogue.
-The wx3.3.4 host is the independently validated #5499 rebuild, identified in its
-pin, while an updated official upstream installer is pending.
+Both hosts are official upstream installers identified by checksum in their pins.
 """
 import json
 import os
@@ -165,9 +164,20 @@ def build(plugin, version, out, work):
         field.text = value
     document.write(metadata, encoding='utf-8', xml_declaration=False)
     package = out / (identity + '-wx' + version.replace('.', '') + '.tar.gz')
-    with tarfile.open(package, 'w:gz') as archive:
-        for path in sorted(stage.rglob('*')):
-            archive.add(path, arcname=path.relative_to(stage), recursive=False)
+    if plugin == 'weather_routing':
+        # Exercise the production CPack layout, including its top-level prefix.
+        # The installed-host tests verify every bundled data file and catalogue.
+        run('cpack', '-G', 'TGZ', '-C', 'Release', '--config', 'CPackConfig.cmake',
+            cwd=build_dir)
+        archives = list(build_dir.glob(identity + '-*.tar.gz'))
+        if len(archives) != 1:
+            raise RuntimeError('Expected one production CPack archive')
+        run(sys.executable, source / 'ci/embed-package-metadata.py',
+            archives[0], metadata, package)
+    else:
+        with tarfile.open(package, 'w:gz') as archive:
+            for path in sorted(stage.rglob('*')):
+                archive.add(path, arcname=path.relative_to(stage), recursive=False)
     receipt = dict(plugin=plugin, source_repository=repository, source_revision=revision,
                    host_pin=pin, wx_version=version, package_sha256=digest(package),
                    host_import_count=len(imports['opencpn.exe']), normal_shutdown=[])

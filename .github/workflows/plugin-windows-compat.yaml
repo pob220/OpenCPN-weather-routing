@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        plugin: [celnav, climatology, xgrib]
+        plugin: [celnav, climatology, xgrib, weather_routing]
         wx: ['3.2.9', '3.3.4']
     steps:
       - uses: actions/checkout@v4

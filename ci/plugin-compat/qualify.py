@@ -26,6 +26,8 @@ SPECS = {
     'climatology': ('pob220/climatology_pi', 'climatology_pi',
                    'CLIMATOLOGY_WINDOWS_IMPORT_LIBRARY'),
     'xgrib': ('pob220/xgrib_pi', 'xgrib_pi', 'XGRIB_OPENCPN_IMPORT_LIBRARY'),
+    'weather_routing': ('pob220/weather_routing_pi', 'weather_routing_pi',
+                        'WEATHER_ROUTING_WINDOWS_IMPORT_LIBRARY'),
 }
 
 
@@ -42,7 +44,8 @@ def extract(archive, target):
 def build(plugin, version, out, work):
     repository, identity, import_option = SPECS[plugin]
     source = work / 'source'
-    run('git', 'clone', '--depth', '1', '--branch', 'fix/windows-wx334',
+    branch = 'ci/wx334-host-followup' if plugin == 'weather_routing' else 'fix/windows-wx334'
+    run('git', 'clone', '--depth', '1', '--branch', branch,
         'https://github.com/' + repository + '.git', source)
     run('git', 'submodule', 'update', '--init', 'opencpn-libs', cwd=source)
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=source,
@@ -70,12 +73,17 @@ def build(plugin, version, out, work):
     os.environ.update(PATH=str(host) + os.pathsep + str(wxlib) + os.pathsep + os.environ['PATH'],
                       WX_VER='32' if version.startswith('3.2.') else '33',
                       OCPN_TARGET='MSVC-x64', GITHUB_REPOSITORY=repository,
-                      GITHUB_REF_NAME='fix/windows-wx334')
+                      GITHUB_REF_NAME=branch)
     args = ['-D' + import_option + '=' + str(sdk / 'opencpn.lib'),
             '-DZLIB_LIBRARY=' + str(sdk / 'z.lib'),
             '-DZLIB_LIBRARY_RELEASE=' + str(sdk / 'z.lib')]
     if plugin == 'climatology':
         args += ['-DCLIMATOLOGY_WINDOWS_ZLIB_LIBRARY=' + str(sdk / 'z.lib')]
+    if plugin == 'weather_routing':
+        args += ['-DWEATHER_ROUTING_WINDOWS_ZLIB_LIBRARY=' + str(sdk / 'z.lib'),
+                 '-DWEATHER_ROUTING_STANDALONE_API=ON',
+                 '-DWEATHER_ROUTING_XWEATHER_IDENTITY=OFF',
+                 '-DWEATHER_ROUTING_EXPECTED_WX_VERSION=' + version]
     if plugin == 'celnav':
         vcpkg = Path(os.environ['VCPKG_INSTALLATION_ROOT'])
         run(vcpkg / 'vcpkg.exe', 'install', 'gtest:x64-windows')
@@ -151,7 +159,7 @@ def build(plugin, version, out, work):
                    host_pin=pin, wx_version=version, package_sha256=digest(package),
                    host_import_count=len(imports['opencpn.exe']), normal_shutdown=[])
     (out / 'provenance.json').write_text(json.dumps(receipt, indent=2))
-    return host, identity, package, receipt
+    return host, identity, package, receipt, source
 
 
 def installed_host(host, identity, package, receipt, out):
@@ -216,8 +224,15 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     work = ROOT / 'compat-work'
     work.mkdir()
-    host, identity, package, receipt = build(plugin, version, out, work)
-    installed_host(host, identity, package, receipt, out)
+    host, identity, package, receipt, source = build(plugin, version, out, work)
+    if plugin == 'weather_routing':
+        environment = dict(os.environ, WR_HEADLESS_LIFECYCLE_CONTRACT='1')
+        run(sys.executable, source / 'ci/test-installed-host.py', host / 'opencpn.exe',
+            host / 'opencpn-cmd.exe', package, out / 'routing',
+            '--host-version', receipt['host_pin']['host_version'],
+            env=environment, timeout=900)
+    else:
+        installed_host(host, identity, package, receipt, out)
 
 
 if __name__ == '__main__':

@@ -43,7 +43,8 @@ def extract(archive, target):
 def build(plugin, version, out, work):
     repository, identity, import_option = SPECS[plugin]
     source = work / 'source'
-    branch = 'ci/wx334-host-followup' if plugin == 'weather_routing' else 'fix/windows-wx334'
+    branch = {'weather_routing': 'ci/wx334-host-followup',
+              'celnav': 'release/celnav-2.9.11'}.get(plugin, 'fix/windows-wx334')
     pinned = json.loads((Path(__file__).with_name('sources.json')).read_text())[plugin]
     source.mkdir()
     run('git', 'init', source)

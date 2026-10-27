@@ -45,11 +45,16 @@ def build(plugin, version, out, work):
     repository, identity, import_option = SPECS[plugin]
     source = work / 'source'
     branch = 'ci/wx334-host-followup' if plugin == 'weather_routing' else 'fix/windows-wx334'
-    run('git', 'clone', '--depth', '1', '--branch', branch,
-        'https://github.com/' + repository + '.git', source)
+    pinned = json.loads((Path(__file__).with_name('sources.json')).read_text())[plugin]
+    source.mkdir()
+    run('git', 'init', source)
+    run('git', 'remote', 'add', 'origin', 'https://github.com/' + repository + '.git', cwd=source)
+    run('git', 'fetch', '--depth', '1', 'origin', pinned, cwd=source)
+    run('git', 'checkout', '--detach', 'FETCH_HEAD', cwd=source)
     run('git', 'submodule', 'update', '--init', 'opencpn-libs', cwd=source)
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=source,
                                        text=True).strip()
+    assert revision == pinned, 'Plugin source does not match the qualification pin'
     pin = json.loads((Path(__file__).parent / ('wx-' + version + '.json')).read_text())
     installer = work / 'host.exe'
     download(pin['host_url'], installer, pin['host_sha256'])

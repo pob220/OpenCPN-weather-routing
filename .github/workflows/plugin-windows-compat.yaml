@@ -4,6 +4,11 @@ on:
   push:
     branches: [ci/windows-plugin-compatibility]
   workflow_dispatch:
+    inputs:
+      plugins:
+        description: 'JSON array of plugins to qualify'
+        type: string
+        default: '["celnav", "climatology", "xgrib", "weather_routing"]'
 
 permissions:
   contents: read
@@ -15,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        plugin: [celnav, climatology, xgrib, weather_routing]
+        plugin: ${{ fromJSON(inputs.plugins || '["celnav", "climatology", "xgrib", "weather_routing"]') }}
         wx: ['3.2.9', '3.3.4']
     steps:
       - uses: actions/checkout@v4

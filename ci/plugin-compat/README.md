@@ -18,7 +18,7 @@ Final qualification of the pinned sources (28 October 2026):
 | --- | --- | --- | --- | --- |
 | Celestial Navigation 2.9.11 | `5ec5264` | Pass | Pass | [Native tests and lifecycle](https://github.com/pob220/OpenCPN-weather-routing/actions/runs/40603917915) |
 | Climatology 2.0 | `f6b8872` | Pass | Pass | [Matched-host matrix](https://github.com/pob220/OpenCPN-weather-routing/actions/runs/40601493115) (the two Climatology jobs) |
-| xGRIB 0.4.1 | `72f1ce7` | Pass | Pass | [Final source qualification](https://github.com/pob220/OpenCPN-weather-routing/actions/runs/40606027429) |
+| xGRIB 0.4.1 | `7373672` | Pass | Pass | [Final source qualification](https://github.com/pob220/OpenCPN-weather-routing/actions/runs/40608917343) |
 | Weather Routing 1.35 | `0b985e5` | Pass | Pass | [Production package and routing checks](https://github.com/pob220/OpenCPN-weather-routing/actions/runs/40603696692) |
 
 Weather Routing's pinned tree is identical to contribution PR #723 at

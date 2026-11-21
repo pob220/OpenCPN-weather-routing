@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - master
+      - ci/chart-safety-141-20261121
     paths-ignore:
       - 'manual/**'
   pull_request:
